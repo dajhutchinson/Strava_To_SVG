@@ -4,6 +4,7 @@
     other data sources (cadence etc)
 """
 from datetime import datetime
+import pandas as pd
 import sys
 
 """
@@ -12,10 +13,17 @@ The difference between gpx & tcx data is that tcx includes calculation of distan
 
 class GPSFileReader:
 
+    # read datafiles to dictionaries
+    def read(self,path):
+        extension=path[-4:]
+        if (extension==".gpx"): return self.read_gpx(path)
+        if (extension==".tcx"): return self.read_tcx(path)
+        return -1, -1 # unrecognised file type
+
     """
-    reads tcx data into a dictionary
-    data     = [{time:datetime.datetime,position_lat:float,position_lon:float,altitude:float,heart_rate:int}]
-    metadata = [{sport:str/int,date:datetime.datetime}]
+    reads tcx data into two dictionaries
+        data     = [{time:datetime.datetime,position_lat:float,position_lon:float,altitude:float,heart_rate:int}]
+        metadata = [{sport:str/int,date:datetime.datetime}]
     """
     def read_gpx(self,path):
         f=open(path,"r")
@@ -56,10 +64,10 @@ class GPSFileReader:
         return data,metadata
 
     """
-    reads tcx data into a dictionary
+    reads tcx data into two dictionaries
     NOTE - ignores laps and just amalgements all into one
-    data     = [{time:datetime.datetime,position_lat:float,position_lon:float,altitude:float,distance_to_point:float,heart_rate:int}]
-    metadata = [{sport:str,date:datetime.datetime}]
+        data     = [{time:datetime.datetime,position_lat:float,position_lon:float,altitude:float,distance_to_point:float,heart_rate:int}]
+        metadata = [{sport:str,date:datetime.datetime}]
     """
     def read_tcx(self, path):
         f=open(path,"r")
@@ -109,17 +117,11 @@ class GPSFileReader:
 
         return data,metadata
 
-    def read(self,path):
-        extension=path[-4:]
-        if (extension==".gpx"): return self.read_gpx(path)
-        if (extension==".tcx"): return self.read_tcx(path)
-        return -1 # unrecognised file type
+    # convert data from read func to pd.DataFrame
+    def data_to_dataframe(self,data):
+        return pd.DataFrame(data)
 
-reader=GPSFileReader()
-data,metadata=reader.read("examples\example_ride.tcx")
-print(len(data),data[0])
-print(metadata)
-
-data,metadata=reader.read("examples\example_ride.gpx")
-print(len(data),data[0])
-print(metadata)
+# reader=GPSFileReader()
+# data,metadata=reader.read("examples\example_ride.tcx")
+# df=reader.data_to_dataframe(data).head()
+# print(df.dtypes)
