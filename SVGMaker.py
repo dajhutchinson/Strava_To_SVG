@@ -1,14 +1,14 @@
 """
     TODO
-    Elevation Plot
+    Histogram of splits (with animation)
     Styling
     Check scaling
     Animation
     Distance Marker
     Legend?
 """
-from geopy.distance import geodesic
-from GPSFileReader import GPSFileReader
+from GPSReader import GPSReader
+from GPSEvaluator import GPSEvaluator
 from math import ceil
 import pandas as pd
 
@@ -25,47 +25,11 @@ class SVGMaker:
         scale_range=min(1000,4*(max_v-min_v))
         return border+scale_range-int(scale_range*(v-min_v)/(max_v-min_v))
 
-    # returns distance covered between pair of (lat,lon) points
-    # p=(lat,lon)
-    def __distance_lat_lon(self,p1,p2) -> float:
-        return geodesic(p1,p2).meters
-
-    # return pd.Series of distance between consequtive lat,lon points
-    def distance(self,df:pd.DataFrame) -> pd.Series:
-        if ("position_lat" in df.columns) and ("position_lon" in df.columns):
-            lat_lon=df[["position_lat","position_lon"]].copy()
-            prev_lat_lon=pd.concat([lat_lon.head(1).copy(),lat_lon.iloc[:-1,:].copy()],ignore_index=True)
-            #print(prev_lat_lon["position_lat"])
-            lat_lon["prev_lat"]=prev_lat_lon["position_lat"]
-            lat_lon["prev_lon"]=prev_lat_lon["position_lon"]
-
-            lat_lon["distance"]=lat_lon.apply(lambda x:self.__distance_lat_lon((x["position_lat"],x["position_lon"]),(x["prev_lat"],x["prev_lon"])),axis=1)
-            return lat_lon["distance"]
-        return None
-
-    # calculate cummulative distance from start to point
-    def cumm_distance(self,df:pd.DataFrame) -> pd.Series:
-
-        if ("distance" in df.columns): dists=df["distance"]
-        elif ("position_lat" in df.columns) and ("position_lon" in df.columns): dists=self.distance(df)
-        else: return None # not enough data
-
-        return dists.cumsum().apply(lambda x:round(x,2))
-
-    # returns time as number of seconds from start
-    def time_to_seconds(self,df:pd.DataFrame) -> pd.Series:
-        if "time" in df:
-            times=df["time"]
-            start_time=times[0]
-            return times.apply(lambda x:(x-start_time).seconds).astype(int)
-        else: # not enough data
-            return None
-
     """
     PLOTS
     """
     # generate a path of the route taken
-    def generate_route_svg(self,df,output_name="route"):
+    def generate_route_svg(df,output_name="route"):
         BORDER=10
         COLOUR="#214025"
         lat_lon_data=df[["position_lat","position_lon"]].copy()
@@ -99,14 +63,14 @@ class SVGMaker:
         return True
 
     # generate an svg path of the elevation against distance
-    def generate_elevation_svg(self,df,output_name="elevation"):
+    def generate_elevation_svg(df,output_name="elevation"):
         BORDER=10
         COLOUR="#214025"
 
         # check data exists
         if "cumm_distance" in df: elevation=df[["cumm_distance","altitude"]].copy(deep=True) # data to be used
         elif ("position_lat" in df.columns) and ("position_lon" in df.columns):
-            df["cumm_distance"]=self.distance(df)
+            df["cumm_distance"]=GPSEvaluator.cumm_distance(df)
             elevation=df[["cumm_distance","altitude"]].copy(deep=True)
         else: return None # not enough data
 
@@ -134,3 +98,44 @@ class SVGMaker:
         svg_file.close()
 
         return True
+
+    def make_histogram(data:pd.Series,output_name="hist"):
+        # define bar params
+        height=min(int(100/data.size),10)-2
+        y_max=2+(data.size*(2+height))
+
+        # calculate bar widths
+        min_val=data.min(); max_val=data.max()
+        widths=data.copy().apply(lambda x:int((70*(x-min_val))/(max_val-min_val)))
+
+        svg_file=open(output_name+".svg","w+")
+        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 140 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
+
+        # add axes
+        x=2; count=0
+        for ind,width in widths.iteritems():
+            y=2+count*(2+height)
+            svg_file.write('<rect class="hist_bar" x="{}" y="{}" width="{}" height="{}" '.format(x,y,width,height)) # dimensions
+            svg_file.write('style="fill:#214025;stroke-width:1;stroke:#547358">') # styling
+            svg_file.write('</rect>\n')
+            count+=1
+
+            if (width!=0):
+                svg_file.write('<text class="hist_text" x="{}" y="{}" dy="{}" style="font-size:{}px">{}</text>\n'.format(width+3,y,height-1,height,ind))
+
+        # add axes
+        svg_file.write('<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(x,x,y_max)) # y axis
+        svg_file.write("</svg>")
+
+        svg_file.close()
+
+if __name__=="__main__":
+    reader=GPSReader()
+    data,metadata=reader.read("examples\Run_from_Exam.tcx")
+    df=reader.data_to_dataframe(data)
+
+    # SVGMaker.generate_route_svg(df)
+    # SVGMaker.generate_elevation_svg(df)
+
+    hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
+    SVGMaker.make_histogram(hist_data)

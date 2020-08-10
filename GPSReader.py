@@ -1,6 +1,5 @@
 """
     TODO
-    return as pd.DataFrame
     other data sources (cadence etc)
 """
 from datetime import datetime
@@ -11,7 +10,7 @@ import sys
 The difference between gpx & tcx data is that tcx includes calculation of distance to point
 """
 
-class GPSFileReader:
+class GPSReader:
 
     # read datafiles to dictionaries
     def read(self,path):
@@ -121,7 +120,7 @@ class GPSFileReader:
     def data_to_dataframe(self,data):
         return pd.DataFrame(data)
 
-# reader=GPSFileReader()
+# reader=GPSReader()
 # data,metadata=reader.read("examples\example_ride.tcx")
 # df=reader.data_to_dataframe(data).head()
 # print(df.dtypes)
