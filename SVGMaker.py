@@ -1,6 +1,6 @@
 """
     TODO
-    Animate hist of splits (show distributioin of split for each km)
+    Animate elevation & route
     Styling
     Check scaling
     Animation
@@ -11,6 +11,25 @@ from GPSReader import GPSReader
 from GPSEvaluator import GPSEvaluator
 from math import ceil
 import pandas as pd
+
+class HistogramStyler:
+
+    def __init__(self,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",font_size=12,font_family="arial"):
+        self.rect_colour=rect_colour # fill colour of rect
+
+        # rect border
+        self.stroke_width=stroke_width
+        self.stroke_colour=stroke_colour
+
+        # text styling
+        self.font_size=font_size
+        self.font_family=font_family
+
+    def rect_style_str(self) -> str:
+        return "fill:{};stroke-width:{};stroke:{}".format(self.rect_colour,self.stroke_width,self.stroke_colour)
+
+    def text_style_str(self) -> str:
+        return "font-size:{}px;font-family:{}".format(self.font_size,self.font_family)
 
 class SVGMaker:
 
@@ -65,7 +84,8 @@ class SVGMaker:
         svg_file.write("</svg>")
 
         svg_file.close()
-        return True
+
+        return output_name+".svg"
 
     # generate an svg path of the elevation against distance
     def generate_elevation_svg(df,output_name="elevation"):
@@ -102,13 +122,16 @@ class SVGMaker:
         svg_file.write("</svg>")
         svg_file.close()
 
-        return True
+        return output_name+".svg"
 
     # makes horizontal histogram using data from GPSEvaluator.split_histogram_data()
-    def make_histogram(data:pd.Series,output_name="hist"):
+    def make_histogram(data:pd.Series,output_name="hist",hist_styler=None):
+        if hist_styler is None: hist_styler=HistogramStyler()
         # define bar params
         height=min(int(100/data.size),10)-2
         y_max=2+(data.size*(2+height))
+
+        hist_styler.font_size=height
 
         # calculate bar widths
         min_val=data.min(); max_val=data.max()
@@ -122,18 +145,19 @@ class SVGMaker:
         for ind,width in widths.iteritems():
             y=2+count*(2+height)
             svg_file.write('<rect class="hist_bar" x="{}" y="{}" width="{}" height="{}" '.format(x,y,width,height)) # dimensions
-            svg_file.write('style="fill:#214025;stroke-width:1;stroke:#547358">') # styling
+            svg_file.write('style="{}">'.format(hist_styler.rect_style_str())) # styling
             svg_file.write('</rect>\n')
             count+=1
 
             if (width!=0):
-                svg_file.write('<text class="hist_text" x="{}" y="{}" dy="{}" style="font-size:{}px">{}</text>\n'.format(width+3,y,height-1,height,ind))
+                svg_file.write('<text class="hist_text" x="{}" y="{}" dy="{}" style="{}">{}</text>\n'.format(width+3,y,height-1,hist_styler.text_style_str(),ind))
 
         # add axes
         svg_file.write('<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(x,x,y_max)) # y axis
         svg_file.write("</svg>")
 
         svg_file.close()
+        return output_name+".svg"
 
     # makes animated horizontal histogram using data from GPSEvaluator.split_histogram_data_per_km()
     # animation_length:seconds
@@ -179,16 +203,20 @@ class SVGMaker:
         # extras
         frame_length=round(animation_length/widths.shape[1],1)
         SVGMaker.__generate_css_for_animated_histogram(widths.columns,frame_length=frame_length,output_name=output_name)
-        if (html): SVGMaker.__generate_html_for_svg(output_name+".svg",output_name+".css",output_name)
+        if (html): SVGMaker.generate_html_for_svg(output_name+".svg",output_name+".css",output_name)
 
-        return True
+        return output_name+".svg"
 
+    """
+    STYLING
+    """
     # creates csv file which adds animation to histogram
     def __generate_css_for_animated_histogram(col_labels,frame_length=1,output_name="animated_hist"):
         frame_length=max(frame_length,.1)
         css_file=open(output_name+".css","w+")
-        css_file.write(".hist_text {\n\tfont-family:Arial\n}\n")
-        css_file.write(".hist_bar {\n\topacity: 0;\n}\n\n@keyframes opacity {\n\t0% {opacity: 0}\n\t100% {opacity: 1}\n}\n\n")
+        css_file.write(".hist_bar {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\topacity: 0;\n}\n\n")
+        css_file.write(".hist_bar:hover {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\tfill: #547358!important\n}\n\n")
+        css_file.write("@keyframes opacity {\n\t0% {opacity: 0}\n\t100% {opacity: 1}\n}\n\n")
 
         count=0
         for col in col_labels:
@@ -198,10 +226,13 @@ class SVGMaker:
             count+=1
 
         css_file.close()
-        return True
+        return output_name+".css"
 
-    # generates html file for checking svg
-    def __generate_html_for_svg(svg_file_name,css_file_name=None,output_name="example"):
+    """
+    HELPERS
+    """
+    # generates html file for visulasing svg
+    def generate_html_for_svg(svg_file_name,css_file_name=None,output_name="example"):
         html_file=open(output_name+".html","w+")
         html_file.write('<html>\n')
         if css_file_name is not None:
@@ -213,17 +244,18 @@ class SVGMaker:
                 html_file.write("\t"+line)
 
         html_file.write("\t</body>\n</html>")
+        return output_name+".html"
 
 if __name__=="__main__":
     reader=GPSReader()
     data,metadata=reader.read("examples\example_run.gpx")
     df=reader.data_to_dataframe(data)
 
-    # SVGMaker.generate_route_svg(df)
-    # SVGMaker.generate_elevation_svg(df)
+    SVGMaker.generate_route_svg(df)
+    SVGMaker.generate_elevation_svg(df)
 
-    hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-    SVGMaker.make_histogram(hist_data)
-
-    hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-    SVGMaker.make_animated_histogram(hist_data_per_km,html=True,animation_length=3)
+    # hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
+    # SVGMaker.make_histogram(hist_data)
+    #
+    # hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
+    # SVGMaker.make_animated_histogram(hist_data_per_km,html=True,animation_length=3)
