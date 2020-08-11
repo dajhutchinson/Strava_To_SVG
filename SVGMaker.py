@@ -1,6 +1,6 @@
 """
     TODO
-    Histogram of splits (with animation)
+    Animate hist of splits (show distributioin of split for each km)
     Styling
     Check scaling
     Animation
@@ -99,6 +99,7 @@ class SVGMaker:
 
         return True
 
+    # makes horizontal histogram using data from GPSEvaluator.split_histogram_data()
     def make_histogram(data:pd.Series,output_name="hist"):
         # define bar params
         height=min(int(100/data.size),10)-2
@@ -106,7 +107,7 @@ class SVGMaker:
 
         # calculate bar widths
         min_val=data.min(); max_val=data.max()
-        widths=data.copy().apply(lambda x:int((70*(x-min_val))/(max_val-min_val)))
+        widths=data.copy().apply(lambda x:int((70*(x))/max_val))
 
         svg_file=open(output_name+".svg","w+")
         svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 140 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
@@ -129,9 +130,78 @@ class SVGMaker:
 
         svg_file.close()
 
+    # makes animated horizontal histogram using data from GPSEvaluator.split_histogram_data_per_km()
+    # animation_length:seconds
+    def make_animated_histogram(df:pd.DataFrame,animation_length=10,output_name="animated_hist",html=False):
+        # TODO - add text
+        height=min(int(100/df.shape[0]),10)-2
+        y_max=2+(df.shape[0]*(2+height))
+
+        min_row_sum=df.sum(axis=1).min()
+        max_row_sum=df.sum(axis=1).max()
+        widths=df.copy().apply(lambda x:(70*x)/max_row_sum).astype(int)
+
+        svg_file=open(output_name+".svg","w+")
+        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 140 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
+
+        x={val:2 for val in widths.index}
+        for col in widths.columns:
+            column=widths[col]
+            count=0
+            for split,width in column.iteritems():
+                y=2+count*(2+height)
+                if (width!=0):
+                    svg_file.write('\t<rect class="hist_bar bar_{}" x="{}" y="{}" width="{}" height="{}" '.format(col,x[split],y,width,height)) # dimensions
+                    x[split]+=width
+                    svg_file.write('style="fill:#214025">') # styling
+                    svg_file.write('</rect>\n')
+                count+=1
+            #print(column)
+        svg_file.write('\t<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(2,2,y_max)) # y axis
+        svg_file.write("</svg>")
+
+        svg_file.close()
+
+        # extras
+        frame_length=round(animation_length/widths.shape[1],1)
+        SVGMaker.__generate_css_for_animated_histogram(widths.columns,frame_length=frame_length,output_name=output_name)
+        if (html): SVGMaker.__generate_html_for_svg(output_name+".svg",output_name+".css",output_name)
+
+        return True
+
+    # creates csv file which adds animation to histogram
+    def __generate_css_for_animated_histogram(col_labels,frame_length=1,output_name="animated_hist"):
+        frame_length=max(frame_length,.1)
+        css_file=open(output_name+".css","w+")
+        css_file.write(".hist_bar {\n\topacity: 0;\n}\n\n@keyframes opacity {\n\t0% {opacity: 0}\n\t100% {opacity: 1}\n}\n\n")
+
+        count=0
+        for col in col_labels:
+            css_file.write(".bar_{} {{\n\tanimation: linear {}s opacity forwards;\n".format(col,frame_length))
+            if (count!=0): css_file.write("\tanimation-delay: {}s\n".format(count*frame_length))
+            css_file.write("}\n\n")
+            count+=1
+
+        css_file.close()
+        return True
+
+    # generates html file for checking svg
+    def __generate_html_for_svg(svg_file_name,css_file_name=None,output_name="example"):
+        html_file=open(output_name+".html","w+")
+        html_file.write('<html>\n')
+        if css_file_name is not None:
+            html_file.write('\t<head>\n\t\t<link rel="stylesheet" type="text/css" href={}>\n\t</head>\n'.format(css_file_name))
+        html_file.write('\t<body>\n')
+
+        with open(svg_file_name,"r") as svg_file:
+            for line in svg_file:
+                html_file.write("\t"+line)
+
+        html_file.write("\t</body>\n</html>")
+
 if __name__=="__main__":
     reader=GPSReader()
-    data,metadata=reader.read("examples\Run_from_Exam.tcx")
+    data,metadata=reader.read("examples\Liverpool_HM_1_35_01_PB_.gpx")
     df=reader.data_to_dataframe(data)
 
     # SVGMaker.generate_route_svg(df)
@@ -139,3 +209,6 @@ if __name__=="__main__":
 
     hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
     SVGMaker.make_histogram(hist_data)
+
+    hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
+    SVGMaker.make_animated_histogram(hist_data_per_km,html=True,animation_length=1)
