@@ -25,6 +25,11 @@ class SVGMaker:
         scale_range=min(1000,4*(max_v-min_v))
         return border+scale_range-int(scale_range*(v-min_v)/(max_v-min_v))
 
+    def __seconds_to_time_str(seconds):
+        secs=seconds%60
+        mins=seconds//60
+        return "{}:{}".format(mins,"0"+str(secs) if secs<10 else secs)
+
     """
     PLOTS
     """
@@ -134,17 +139,19 @@ class SVGMaker:
     # animation_length:seconds
     def make_animated_histogram(df:pd.DataFrame,animation_length=10,output_name="animated_hist",html=False):
         # TODO - add text
+        x_axis=10 # x value of axis
         height=min(int(100/df.shape[0]),10)-2
         y_max=2+(df.shape[0]*(2+height))
 
         min_row_sum=df.sum(axis=1).min()
         max_row_sum=df.sum(axis=1).max()
-        widths=df.copy().apply(lambda x:(70*x)/max_row_sum).astype(int)
+        max_bar_width=100-x_axis
+        widths=df.copy().apply(lambda x:(max_bar_width*x)/max_row_sum).astype(int)
 
         svg_file=open(output_name+".svg","w+")
-        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 140 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
+        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 100 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
 
-        x={val:2 for val in widths.index}
+        x={val:x_axis for val in widths.index}
         for col in widths.columns:
             column=widths[col]
             count=0
@@ -156,8 +163,15 @@ class SVGMaker:
                     svg_file.write('style="fill:#214025">') # styling
                     svg_file.write('</rect>\n')
                 count+=1
-            #print(column)
-        svg_file.write('\t<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(2,2,y_max)) # y axis
+
+        count=0
+        for index,row in widths.iterrows():
+            y=2+count*(2+height); count+=1
+            label=SVGMaker.__seconds_to_time_str(index)
+            if (row.sum()!=0):
+                svg_file.write('<text class="hist_text" x={} y={} dy={} text-anchor="end" style="font-size:{}px">{}</text>\n'.format(x_axis-1,y,height-1,height,label))
+
+        svg_file.write('\t<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(x_axis,x_axis,y_max)) # y axis
         svg_file.write("</svg>")
 
         svg_file.close()
@@ -173,6 +187,7 @@ class SVGMaker:
     def __generate_css_for_animated_histogram(col_labels,frame_length=1,output_name="animated_hist"):
         frame_length=max(frame_length,.1)
         css_file=open(output_name+".css","w+")
+        css_file.write(".hist_text {\n\tfont-family:Arial\n}\n")
         css_file.write(".hist_bar {\n\topacity: 0;\n}\n\n@keyframes opacity {\n\t0% {opacity: 0}\n\t100% {opacity: 1}\n}\n\n")
 
         count=0
@@ -201,7 +216,7 @@ class SVGMaker:
 
 if __name__=="__main__":
     reader=GPSReader()
-    data,metadata=reader.read("examples\Liverpool_HM_1_35_01_PB_.gpx")
+    data,metadata=reader.read("examples\example_run.gpx")
     df=reader.data_to_dataframe(data)
 
     # SVGMaker.generate_route_svg(df)
@@ -211,4 +226,4 @@ if __name__=="__main__":
     SVGMaker.make_histogram(hist_data)
 
     hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-    SVGMaker.make_animated_histogram(hist_data_per_km,html=True,animation_length=1)
+    SVGMaker.make_animated_histogram(hist_data_per_km,html=True,animation_length=3)
