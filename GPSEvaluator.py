@@ -1,3 +1,4 @@
+
 from datetime import datetime
 import pandas as pd
 from math import floor
@@ -94,31 +95,11 @@ class GPSEvaluator:
             bins[lower_bound]+=1
 
         bins_ser=pd.Series(bins)
-        if clean: return GPSEvaluator.clean_histogram_data(bins_ser)
+        if clean: return GPSEvaluator.__clean_histogram_data(bins_ser)
         return bins_ser
 
-    # generate histogram data for each km and returns df with kms as columns and splits as rows
-    def split_histogram_data_per_km(df:pd.DataFrame,bin_width=10,sampling_dist=100) -> pd.DataFrame:
-        if (1000%sampling_dist!=0): return None # non-equal samples per km
-
-        split_data=GPSEvaluator.splits(df,split_dist=sampling_dist)["time"] # generalise data
-        split_data=split_data.apply(lambda x:x*(1000/sampling_dist)).astype(int) # extrapolate km splits
-
-        samples_per_km=int(1000/sampling_dist)
-        num_kms=floor(len(split_data)/samples_per_km)
-
-        bins={val:0 for val in range(floor(split_data.min()/bin_width)*bin_width,split_data.max()+1,bin_width)}
-        rows=[]
-        for i in range(num_kms+1):
-            local_bins=bins.copy()
-            slice=split_data.iloc[i*samples_per_km:(i+1)*samples_per_km]
-            for _,split in slice.iteritems(): local_bins[split]+=1
-            rows.append(local_bins)
-        split_df=pd.DataFrame(rows,index=["km_{}".format(i+1) for i in range(num_kms+1)]).transpose() #columns=["km_{}".format(i+1) for i in range(num_kms+1)]
-        return split_df
-
     # keeps densiest cluster whichc contains min_kept% of all values
-    def clean_histogram_data(splits:pd.Series,min_kept=.9) -> pd.Series:
+    def __clean_histogram_data(splits:pd.Series,min_kept=.9) -> pd.Series:
         clusters=[] # lower & upper values of clusters
         cluster_mass={} # count what % of data cluster holds
         total_mass=splits.sum()
@@ -157,6 +138,70 @@ class GPSEvaluator:
 
         return new_splits
 
+    # generate histogram data for each km and returns df with kms as columns and splits as rows
+    def split_histogram_data_per_km(df:pd.DataFrame,bin_width=10,sampling_dist=100,clean=False) -> pd.DataFrame:
+        if (1000%sampling_dist!=0): return None # non-equal samples per km
+
+        split_data=GPSEvaluator.splits(df,split_dist=sampling_dist)["time"] # generalise data
+        split_data=split_data.apply(lambda x:x*(1000/sampling_dist)).astype(int) # extrapolate km splits
+
+        samples_per_km=int(1000/sampling_dist)
+        num_kms=floor(len(split_data)/samples_per_km)
+
+        bins={val:0 for val in range(floor(split_data.min()/bin_width)*bin_width,split_data.max()+1,bin_width)}
+        rows=[]
+        for i in range(num_kms+1):
+            local_bins=bins.copy()
+            slice=split_data.iloc[i*samples_per_km:(i+1)*samples_per_km]
+            for _,split in slice.iteritems(): local_bins[split]+=1
+            rows.append(local_bins)
+
+        split_df=pd.DataFrame(rows,index=["km_{}".format(i+1) for i in range(num_kms+1)]).transpose() #columns=["km_{}".format(i+1) for i in range(num_kms+1)]
+
+        if clean: return GPSEvaluator.__clean_def_histogram_data_per_km(split_df)
+        return split_df
+
+    # keeps densiest cluster whichc contains min_kept% of all values
+    def __clean_def_histogram_data_per_km(df:pd.DataFrame,min_kept=.9) -> pd.Series:
+        clusters=[]; cluster_mass={}
+        total_mass=df.values.sum()
+
+        lower=df.index[0]; in_cluster=True; mass=0; prev=None # prepare to record clusters
+        for bound,row in df.iterrows():
+            count=row.sum()
+            mass+=count # mass of current cluster
+            if (count==0) and (in_cluster): # end of cluster
+                clusters.append((lower,prev))
+                cluster_mass[(lower,prev)]=mass/total_mass
+                mass=0
+                in_cluster=False
+            elif (count!=0) and (not in_cluster): # start of cluster
+                lower=bound
+                in_cluster=True
+            prev=bound
+
+        if (in_cluster): # if last cluster runs over end of list
+            clusters.append((lower,prev))
+            cluster_mass[(lower,prev)]=mass/total_mass
+
+        # keep adding largest cluster until min_kept proportion is met
+        min_kept=min(1,min_kept)
+        new_df=pd.DataFrame(); stored_mass=0
+        while stored_mass<min_kept: # keep adding largest clusters
+            biggest_cluster=max(cluster_mass,key=cluster_mass.get)
+            new_df=pd.concat([new_df,df.loc[biggest_cluster[0]:biggest_cluster[1]]])
+            stored_mass+=cluster_mass[biggest_cluster]
+            del cluster_mass[biggest_cluster] # so cannot be added again
+
+        # fill in gaps
+        width=df.index[1]-df.index[0]
+        empty_row=[0 for _ in range(df.shape[1])]
+        for i in range(new_df.index.min(),new_df.index.max(),width):
+            if (i not in new_df.index): new_df=new_df.append(pd.Series(empty_row,name=i,index=new_df.columns))
+        new_df=new_df.sort_index()
+
+        return new_df
+
 if __name__=="__main__":
     reader=GPSReader()
     data,metadata=reader.read("examples\Run_from_Exam.tcx")
@@ -167,5 +212,5 @@ if __name__=="__main__":
     # df["cumm_distance"]=GPSEvaluator.cumm_distance(df)
 
     # hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-    hist_data=GPSEvaluator.split_histogram_data_per_km(df)
-    # print(hist_data)
+    hist_data=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
+    print(hist_data)
