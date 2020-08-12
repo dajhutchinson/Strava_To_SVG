@@ -33,7 +33,9 @@ class HistogramStyler:
 class RouteStyler:
 
     def __init__(self,border_width=10,path_colour="#214025",fill_colour="none",path_width=5,path_linejoin="round",
-        animated=False,animation_length=10,num_dashes=2,dash_colour="#547358"):
+        animated=False,animation_length=10,num_dashes=2,dash_colour="#547358",
+        split_dist=None,split_marker_colour="#000",split_marker_width=5,
+        start_marker=False,start_marker_colour="green",end_marker=False,end_marker_colour="red"):
         # image styling
         self.border_width=border_width
 
@@ -49,6 +51,11 @@ class RouteStyler:
         self.animation_length=animation_length
         self.num_dashes=num_dashes
         self.dash_colour=dash_colour
+
+        # split markers (ie mile markers)
+        self.split_dist=split_dist # set to None for no markers
+        self.split_marker_colour=split_marker_colour
+        self.split_marker_width=split_marker_width
 
     def path_style_str(self) -> str:
         return 'fill="{}" stroke-width="{}" stroke-linejoin="{}" stroke="{}"'.format(self.fill_colour,self.path_width,self.path_linejoin,self.path_colour)
@@ -104,13 +111,26 @@ class SVGMaker:
         svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(lat_lon_data["scaled_lon"].max()+route_styler.border_width,lat_lon_data["scaled_lat"].max()+route_styler.border_width))
         svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(route_styler.path_style_str(),point_str))
 
+        # add animation
         if (route_styler.animated):
-            svg_file.write('<path class="animated_route" {} d="M{}" ></path>\n'.format(route_styler.animated_path_style_str(),point_str))
+            svg_file.write('<path class="animated_route" {} d="M{}" ></path>\n'.format(route_styler.animated_path_style_str(),point_str)) # path to be animated
             css_file_name=SVGMaker.__generate_css_for_animated_route(route_styler=route_styler,output_name=output_name)
             js_file_name=SVGMaker.__generate_js_for_animated_route(route_styler=route_styler,output_name=output_name)
         else:
             css_file_name=None
             js_file_name =None
+
+        if (route_styler.split_dist is not None):
+            split_coords=GPSEvaluator.split_markers(df,route_styler.split_dist)
+
+            # scale to canvas
+            split_coords["scaled_lat"]=split_coords["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_diff/max_diff,border=route_styler.border_width)
+            split_coords["scaled_lat"]=split_coords["scaled_lat"].apply(lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x)
+            split_coords["scaled_lon"]=split_coords["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_diff/max_diff,border=route_styler.border_width).astype(int)
+
+            for _,row in split_coords.iterrows():
+                svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(row["scaled_lon"],row["scaled_lat"],route_styler.split_marker_width,route_styler.split_marker_colour))
+                #print(row["scaled_lat"],row["scaled_lon"])
 
         svg_file.write("</svg>")
         svg_file.close()
@@ -321,7 +341,7 @@ if __name__=="__main__":
     df=reader.data_to_dataframe(data)
 
     # SVGMaker.generate_route_svg(df,html=True)
-    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12)
+    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000)
     SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
 
     # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="black")
