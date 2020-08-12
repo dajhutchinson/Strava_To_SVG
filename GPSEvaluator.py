@@ -99,6 +99,11 @@ class GPSEvaluator:
 
         return pd.DataFrame(split_coords)
 
+    # identify coords of important locations (start or end)
+    def important_points(df,name):
+        if name=="start":  return df.iloc[0][["position_lat"]],df.iloc[0][["position_lon"]]
+        if name=="finish": return df.iloc[-1][["position_lat"]],df.iloc[-1][["position_lon"]]
+        return None
 
     """HISTOGRAM"""
     # calculate histogram of splits (bin_width:seconds,sampling_dist:metres)

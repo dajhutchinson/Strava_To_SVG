@@ -35,7 +35,8 @@ class RouteStyler:
     def __init__(self,border_width=10,path_colour="#214025",fill_colour="none",path_width=5,path_linejoin="round",
         animated=False,animation_length=10,num_dashes=2,dash_colour="#547358",
         split_dist=None,split_marker_colour="#000",split_marker_width=5,
-        start_marker=False,start_marker_colour="green",end_marker=False,end_marker_colour="red"):
+        start_marker=False,start_marker_colour="green",start_marker_width=5,
+        finish_marker=False,finish_marker_colour="red",finish_marker_width=5):
         # image styling
         self.border_width=border_width
 
@@ -56,6 +57,14 @@ class RouteStyler:
         self.split_dist=split_dist # set to None for no markers
         self.split_marker_colour=split_marker_colour
         self.split_marker_width=split_marker_width
+
+        # start & end markers
+        self.start_marker=start_marker
+        self.start_marker_colour=start_marker_colour
+        self.start_marker_width=start_marker_width
+        self.finish_marker=finish_marker
+        self.finish_marker_colour=finish_marker_colour
+        self.finish_marker_width=finish_marker_width
 
     def path_style_str(self) -> str:
         return 'fill="{}" stroke-width="{}" stroke-linejoin="{}" stroke="{}"'.format(self.fill_colour,self.path_width,self.path_linejoin,self.path_colour)
@@ -130,7 +139,29 @@ class SVGMaker:
 
             for _,row in split_coords.iterrows():
                 svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(row["scaled_lon"],row["scaled_lat"],route_styler.split_marker_width,route_styler.split_marker_colour))
-                #print(row["scaled_lat"],row["scaled_lon"])
+
+
+        # add special markers
+        range=1000-2*route_styler.border_width
+        scale=lambda x,min_v,max_v,scale_factor:int(route_styler.border_width+range*scale_factor*(x-min_v)/(max_v-min_v)) # scale individual points
+
+        if (route_styler.finish_marker):
+            lat,lon=GPSEvaluator.important_points(df,name="finish")
+
+            scaled_lat=scale(lat,min_lat,max_lat,lat_diff/max_diff)
+            scaled_lat=route_styler.border_width+ceil(1000*(lat_diff/max_diff))-scaled_lat
+            scaled_lon=scale(lon,min_lon,max_lon,lon_diff/max_diff)
+
+            svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(scaled_lon,scaled_lat,route_styler.finish_marker_width,route_styler.finish_marker_colour))
+
+        if (route_styler.start_marker):
+            lat,lon=GPSEvaluator.important_points(df,name="start")
+
+            scaled_lat=scale(lat,min_lat,max_lat,lat_diff/max_diff)
+            scaled_lat=route_styler.border_width+ceil(1000*(lat_diff/max_diff))-scaled_lat
+            scaled_lon=scale(lon,min_lon,max_lon,lon_diff/max_diff)
+
+            svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(scaled_lon,scaled_lat,route_styler.start_marker_width,route_styler.start_marker_colour))
 
         svg_file.write("</svg>")
         svg_file.close()
@@ -337,11 +368,11 @@ class SVGMaker:
 
 if __name__=="__main__":
     reader=GPSReader()
-    data,metadata=reader.read("examples\example_run.gpx")
+    data,metadata=reader.read("examples\Liverpool_HM_1_35_01_PB_.gpx")
     df=reader.data_to_dataframe(data)
 
     # SVGMaker.generate_route_svg(df,html=True)
-    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000)
+    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True)
     SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
 
     # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="black")
