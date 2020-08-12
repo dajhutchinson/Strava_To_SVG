@@ -96,79 +96,92 @@ class SVGMaker:
     """ROUTE"""
     # generate a path of the route taken
     def generate_route_svg(df,output_name="route",route_styler=None,html=False) -> str:
-        if route_styler is None: route_styler=RouteStyler()
+        if route_styler is None: route_styler=RouteStyler() # ensure a style is applied
 
-        lat_lon_data=df[["position_lat","position_lon"]].copy()
+        lat_lon_data=df[["position_lat","position_lon"]].copy() # ensure data isn't affected
 
-        min_lat=lat_lon_data["position_lat"].min(); max_lat=lat_lon_data["position_lat"].max()
+        flip_y=lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x # flips y co-ord as 0 is top and 1000 is bottom
+
+        min_lat=lat_lon_data["position_lat"].min(); max_lat=lat_lon_data["position_lat"].max() # determine range of values
         min_lon=lat_lon_data["position_lon"].min(); max_lon=lat_lon_data["position_lon"].max()
+        lat_diff=max_lat-min_lat; lon_diff=max_lon-min_lon; max_diff=max(lon_diff,lat_diff)
+        lat_scale=lat_diff/max_diff; lon_scale=lon_diff/max_diff # ensure scaling is good
 
-        lat_diff=max_lat-min_lat
-        lon_diff=max_lon-min_lon
-        max_diff=max(lon_diff,lat_diff)
+        # path string
+        point_str=SVGMaker.__route_svg_path_string(lat_lon_data,route_styler,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
 
-        lat_lon_data["scaled_lat"]=lat_lon_data["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_diff/max_diff,border=route_styler.border_width)
-        lat_lon_data["scaled_lat"]=lat_lon_data["scaled_lat"].apply(lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x)
-        lat_lon_data["scaled_lon"]=lat_lon_data["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_diff/max_diff,border=route_styler.border_width).astype(int)
-
-        lat_lon_data["point_str"]=lat_lon_data.apply(lambda row:"{},{}".format(str(int(row["scaled_lon"])),str(int(row["scaled_lat"]))),axis=1)
-
-        point_str=" ".join(lat_lon_data["point_str"].tolist())
-
-        # content
+        # write svg file
         svg_file=open(output_name+".svg","w+")
         svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(lat_lon_data["scaled_lon"].max()+route_styler.border_width,lat_lon_data["scaled_lat"].max()+route_styler.border_width))
-        svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(route_styler.path_style_str(),point_str))
+        svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(route_styler.path_style_str(),point_str)) # base path
 
         # add animation
-        if (route_styler.animated):
-            svg_file.write('<path class="animated_route" {} d="M{}" ></path>\n'.format(route_styler.animated_path_style_str(),point_str)) # path to be animated
-            css_file_name=SVGMaker.__generate_css_for_animated_route(route_styler=route_styler,output_name=output_name)
-            js_file_name=SVGMaker.__generate_js_for_animated_route(route_styler=route_styler,output_name=output_name)
-        else:
-            css_file_name=None
-            js_file_name =None
+        if (route_styler.animated): css_file_name,js_file_name=SVGMaker.__add_route_svg_animation(svg_file,route_styler,point_str,output_name)
+        else: css_file_name=None; js_file_name =None
 
-        if (route_styler.split_dist is not None):
-            split_coords=GPSEvaluator.split_markers(df,route_styler.split_dist)
-
-            # scale to canvas
-            split_coords["scaled_lat"]=split_coords["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_diff/max_diff,border=route_styler.border_width)
-            split_coords["scaled_lat"]=split_coords["scaled_lat"].apply(lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x)
-            split_coords["scaled_lon"]=split_coords["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_diff/max_diff,border=route_styler.border_width).astype(int)
-
-            for _,row in split_coords.iterrows():
-                svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(row["scaled_lon"],row["scaled_lat"],route_styler.split_marker_width,route_styler.split_marker_colour))
-
+        # add split markers
+        if (route_styler.split_dist is not None): SVGMaker.__add_route_svg_split_markers(svg_file,df,route_styler,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
 
         # add special markers
-        range=1000-2*route_styler.border_width
-        scale=lambda x,min_v,max_v,scale_factor:int(route_styler.border_width+range*scale_factor*(x-min_v)/(max_v-min_v)) # scale individual points
+        if (route_styler.finish_marker): SVGMaker.__add_route_svg_special_markers("finish",route_styler.finish_marker_width,route_styler.finish_marker_colour,route_styler.border_width,svg_file,df,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
+        if (route_styler.start_marker): SVGMaker.__add_route_svg_special_markers("start",route_styler.start_marker_width,route_styler.start_marker_colour,route_styler.border_width,svg_file,df,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
 
-        if (route_styler.finish_marker):
-            lat,lon=GPSEvaluator.important_points(df,name="finish")
-
-            scaled_lat=scale(lat,min_lat,max_lat,lat_diff/max_diff)
-            scaled_lat=route_styler.border_width+ceil(1000*(lat_diff/max_diff))-scaled_lat
-            scaled_lon=scale(lon,min_lon,max_lon,lon_diff/max_diff)
-
-            svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(scaled_lon,scaled_lat,route_styler.finish_marker_width,route_styler.finish_marker_colour))
-
-        if (route_styler.start_marker):
-            lat,lon=GPSEvaluator.important_points(df,name="start")
-
-            scaled_lat=scale(lat,min_lat,max_lat,lat_diff/max_diff)
-            scaled_lat=route_styler.border_width+ceil(1000*(lat_diff/max_diff))-scaled_lat
-            scaled_lon=scale(lon,min_lon,max_lon,lon_diff/max_diff)
-
-            svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(scaled_lon,scaled_lat,route_styler.start_marker_width,route_styler.start_marker_colour))
-
+        # end file
         svg_file.write("</svg>")
         svg_file.close()
 
+        # html file for previewing
         if (html): SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,js_file_name=js_file_name,output_name=output_name)
 
         return output_name+".svg"
+
+    # generate string for path of route
+    def __route_svg_path_string(lat_lon_data,route_styler,
+                                min_lat,max_lat,lat_scale,
+                                min_lon,max_lon,lon_scale,flip_y) -> str:
+        # scale gps coords to [0-1000] leaving a border
+        lat_lon_data["scaled_lat"]=lat_lon_data["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_scale,border=route_styler.border_width)
+        lat_lon_data["scaled_lat"]=lat_lon_data["scaled_lat"].apply(flip_y) # flip since y increase as it goes down the page
+        lat_lon_data["scaled_lon"]=lat_lon_data["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_scale,border=route_styler.border_width).astype(int)
+
+        # "x,y" string for each point
+        lat_lon_data["point_str"]=lat_lon_data.apply(lambda row:"{},{}".format(str(int(row["scaled_lon"])),str(int(row["scaled_lat"]))),axis=1)
+        point_str=" ".join(lat_lon_data["point_str"].tolist())
+
+        return point_str
+
+    # add animation to a route svg
+    def __add_route_svg_animation(svg_file,route_styler:RouteStyler,point_str:str,output_name:str) -> "str,str":
+        svg_file.write('<path class="animated_route" {} d="M{}" ></path>\n'.format(route_styler.animated_path_style_str(),point_str)) # path to be animated
+        css_file_name=SVGMaker.__generate_css_for_animated_route(route_styler=route_styler,output_name=output_name) # adds animation
+        js_file_name=SVGMaker.__generate_js_for_animated_route(route_styler=route_styler,output_name=output_name)   # ensures animation is seamless
+        return css_file_name,js_file_name
+
+    # add split markers to a route svg
+    def __add_route_svg_split_markers(svg_file,df:pd.DataFrame,route_styler:RouteStyler,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y):
+        split_coords=GPSEvaluator.split_markers(df,route_styler.split_dist) # get marker lat,lon positions
+
+        # scale to canvas
+        split_coords["scaled_lat"]=split_coords["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_scale,border=route_styler.border_width).astype(int)
+        split_coords["scaled_lat"]=split_coords["scaled_lat"].apply(flip_y)
+        split_coords["scaled_lon"]=split_coords["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_scale,border=route_styler.border_width).astype(int)
+
+        for _,row in split_coords.iterrows(): # add markers
+            svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(row["scaled_lon"],row["scaled_lat"],route_styler.split_marker_width,route_styler.split_marker_colour))
+
+        return svg_file
+
+    def __add_route_svg_special_markers(marker_type:str,marker_width:int,marker_colour:str,image_border,
+        svg_file,df:pd.DataFrame,
+        min_lat,max_lat,lat_scale,
+        min_lon,max_lon,lon_scale,flip_y):
+        lat,lon=GPSEvaluator.important_points(df,name=marker_type)
+
+        scaled_lat=int(SVGMaker.__scale_with_border(lat,min_v=min_lat,max_v=max_lat,scale=lat_scale,border=image_border))
+        scaled_lat=flip_y(scaled_lat)
+        scaled_lon=int(SVGMaker.__scale_with_border(lon,min_v=min_lon,max_v=max_lon,scale=lon_scale,border=image_border))
+
+        svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(scaled_lon,scaled_lat,marker_width,marker_colour))
 
     """ELEVATION"""
     # generate an svg path of the elevation against distance
@@ -372,7 +385,7 @@ if __name__=="__main__":
     df=reader.data_to_dataframe(data)
 
     # SVGMaker.generate_route_svg(df,html=True)
-    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True)
+    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple")
     SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
 
     # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="black")
