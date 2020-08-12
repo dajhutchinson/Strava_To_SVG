@@ -18,6 +18,16 @@ class GPSEvaluator:
     def __distance_lat_lon(p1,p2) -> float:
         return geodesic(p1,p2).meters
 
+    # returns time as number of seconds from start
+    def time_to_seconds(df:pd.DataFrame) -> pd.Series:
+        if "time" in df:
+            times=df["time"]
+            start_time=times[0]
+            return times.apply(lambda x:(x-start_time).seconds).astype(int)
+        else: # not enough data
+            return None
+
+
     """
     EVALUATE DATA
     """
@@ -42,15 +52,6 @@ class GPSEvaluator:
         else: return None # not enough data
 
         return dists.cumsum().apply(lambda x:round(x,2))
-
-    # returns time as number of seconds from start
-    def time_to_seconds(df:pd.DataFrame) -> pd.Series:
-        if "time" in df:
-            times=df["time"]
-            start_time=times[0]
-            return times.apply(lambda x:(x-start_time).seconds).astype(int)
-        else: # not enough data
-            return None
 
     # interpolates time between each dist (chops off any overflow)
     def splits(df:pd.DataFrame,split_dist=1000) -> pd.DataFrame:
@@ -81,6 +82,25 @@ class GPSEvaluator:
 
         return splits
 
+    # identify gps co-ords of interval markers
+    def split_markers(df:pd.DataFrame,split_dist=1000) -> pd.DataFrame:
+        if "cumm_distance" not in df.columns:
+            cumm_dists=GPSEvaluator.cumm_distance(df)
+            if cumm_dists is None: return None # not enough data
+            df["cumm_distance"]=cumm_dists
+
+        data=df[["position_lat","position_lon","cumm_distance"]]
+        split_coords=[]
+        target_dist=split_dist
+        for _,row in data.iterrows():
+            if (row["cumm_distance"]>=target_dist):
+                split_coords.append({"dist":target_dist,"position_lat":row["position_lat"],"position_lon":row["position_lon"]})
+                target_dist+=split_dist
+
+        return pd.DataFrame(split_coords)
+
+
+    """HISTOGRAM"""
     # calculate histogram of splits (bin_width:seconds,sampling_dist:metres)
     # clean=runs clean_histogram_data with default values
     def split_histogram_data(df:pd.DataFrame,bin_width=10,sampling_dist=100,clean=False) -> pd.Series:
@@ -207,10 +227,12 @@ if __name__=="__main__":
     data,metadata=reader.read("examples\Run_from_Exam.tcx")
     df=reader.data_to_dataframe(data)
 
+    split_points=GPSEvaluator.split_markers(df,split_dist=1609)
+    print(split_points)
     # df["seconds"]=GPSEvaluator.time_to_seconds(df)
     # df["distance"]=GPSEvaluator.distance(df)
     # df["cumm_distance"]=GPSEvaluator.cumm_distance(df)
 
     # hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-    hist_data=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-    print(hist_data)
+    # hist_data=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
+    # print(hist_data)
