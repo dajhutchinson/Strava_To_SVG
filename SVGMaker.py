@@ -13,6 +13,7 @@ from GPSEvaluator import GPSEvaluator
 from math import ceil
 import pandas as pd
 
+# define style used for histograms
 class HistogramStyler:
 
     def __init__(self,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",font_size=12,font_family="arial"):
@@ -26,11 +27,39 @@ class HistogramStyler:
         self.font_size=font_size
         self.font_family=font_family
 
+    # string used for style tag of rect svg object
     def rect_style_str(self) -> str:
         return "fill:{};stroke-width:{};stroke:{}".format(self.rect_colour,self.stroke_width,self.stroke_colour)
 
+    # string used for style tag of text svg object
     def text_style_str(self) -> str:
         return "font-size:{}px;font-family:{}".format(self.font_size,self.font_family)
+
+class RouteStyler:
+
+    def __init__(self,border_width=10,path_colour="#214025",fill_colour="none",path_width=5,path_linejoin="round",
+        animated=False,animation_length=10,num_dashes=2,dash_colour="#547358"):
+        # image styling
+        self.border_width=border_width
+
+        self.fill_colour=fill_colour
+
+        # path
+        self.path_colour=path_colour
+        self.path_width=path_width
+        self.path_linejoin=path_linejoin
+
+        # animation
+        self.animated=animated
+        self.animation_length=animation_length
+        self.num_dashes=num_dashes
+        self.dash_colour=dash_colour
+
+    def path_style_str(self) -> str:
+        return 'fill="{}" stroke-width="{}" stroke-linejoin="{}" stroke="{}"'.format(self.fill_colour,self.path_width,self.path_linejoin,self.path_colour)
+
+    def animated_path_style_str(self) -> str:
+        return 'fill="{}" stroke-width="{}" stroke-linejoin="{}" stroke="{}"'.format("none",self.path_width,self.path_linejoin,self.dash_colour)
 
 class SVGMaker:
 
@@ -55,9 +84,9 @@ class SVGMaker:
     """
     """ROUTE"""
     # generate a path of the route taken
-    def generate_route_svg(df,output_name="route",animated=False,animation_length=10,html=False) -> str:
-        BORDER=10
-        COLOUR="#214025"
+    def generate_route_svg(df,output_name="route",route_styler=None,html=False) -> str:
+        if route_styler is None: route_styler=RouteStyler()
+
         lat_lon_data=df[["position_lat","position_lon"]].copy()
 
         min_lat=lat_lon_data["position_lat"].min(); max_lat=lat_lon_data["position_lat"].max()
@@ -67,32 +96,29 @@ class SVGMaker:
         lon_diff=max_lon-min_lon
         max_diff=max(lon_diff,lat_diff)
 
-        lat_lon_data["scaled_lat"]=lat_lon_data["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_diff/max_diff,border=BORDER)
-        lat_lon_data["scaled_lat"]=lat_lon_data["scaled_lat"].apply(lambda x: BORDER+ceil(1000*(lat_diff/max_diff))-x)
-        lat_lon_data["scaled_lon"]=lat_lon_data["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_diff/max_diff,border=BORDER).astype(int)
+        lat_lon_data["scaled_lat"]=lat_lon_data["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_diff/max_diff,border=route_styler.border_width)
+        lat_lon_data["scaled_lat"]=lat_lon_data["scaled_lat"].apply(lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x)
+        lat_lon_data["scaled_lon"]=lat_lon_data["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_diff/max_diff,border=route_styler.border_width).astype(int)
 
         lat_lon_data["point_str"]=lat_lon_data.apply(lambda row:"{},{}".format(str(int(row["scaled_lon"])),str(int(row["scaled_lat"]))),axis=1)
 
-        # points=[(BORDER+__scale_0_1000(datum["position_lon"],metadata["min_lon"],metadata["max_lon"],lon_diff/max_diff),BORDER+ceil(1000*(lat_diff/max_diff))-__scale_0_1000(datum["position_lat"],metadata["min_lat"],metadata["max_lat"],lat_diff/max_diff)) for datum in data[lap_name]]
         point_str=" ".join(lat_lon_data["point_str"].tolist())
-
-        # write to file
-        style_str='fill="none" stroke-width="5" stroke-linejoin="round" stroke="'+COLOUR+'"'
 
         # content
         svg_file=open(output_name+".svg","w+")
-        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(lat_lon_data["scaled_lon"].max()+BORDER,lat_lon_data["scaled_lat"].max()+BORDER))
-        svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(style_str,point_str))
-        svg_file.write("</svg>")
+        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(lat_lon_data["scaled_lon"].max()+route_styler.border_width,lat_lon_data["scaled_lat"].max()+route_styler.border_width))
+        svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(route_styler.path_style_str(),point_str))
 
-        svg_file.close()
-
-        if (animated):
-            css_file_name=SVGMaker.__generate_css_for_animated_route(animation_length=animation_length,output_name=output_name)
-            js_file_name=SVGMaker.__generate_js_for_animated_route(output_name=output_name)
+        if (route_styler.animated):
+            svg_file.write('<path class="animated_route" {} d="M{}" ></path>\n'.format(route_styler.animated_path_style_str(),point_str))
+            css_file_name=SVGMaker.__generate_css_for_animated_route(route_styler=route_styler,output_name=output_name)
+            js_file_name=SVGMaker.__generate_js_for_animated_route(route_styler=route_styler,output_name=output_name)
         else:
             css_file_name=None
             js_file_name =None
+
+        svg_file.write("</svg>")
+        svg_file.close()
 
         if (html): SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,js_file_name=js_file_name,output_name=output_name)
 
@@ -100,8 +126,8 @@ class SVGMaker:
 
     """ELEVATION"""
     # generate an svg path of the elevation against distance
-    def generate_elevation_svg(df,output_name="elevation",html=False) -> str:
-        BORDER=10
+    def generate_elevation_svg(df,output_name="elevation",route_styler=None,html=False) -> str:
+        if (route_styler is None): route_styler=RouteStyler()
         COLOUR="#214025"
 
         # check data exists
@@ -115,22 +141,21 @@ class SVGMaker:
         min_alt=elevation["altitude"].min(); max_alt=elevation["altitude"].max()
         min_dist=elevation["cumm_distance"].min(); max_dist=elevation["cumm_distance"].max()
 
-        elevation["scaled_altitude"]=elevation["altitude"].apply(lambda x:SVGMaker.__scale_elevation(x,min_alt,max_alt,border=BORDER))
-        elevation["scaled_distance"]=elevation["cumm_distance"].apply(lambda x:SVGMaker.__scale_with_border(x,min_dist,max_dist,border=BORDER))
+        elevation["scaled_altitude"]=elevation["altitude"].apply(lambda x:SVGMaker.__scale_elevation(x,min_alt,max_alt,border=route_styler.path_width))
+        elevation["scaled_distance"]=elevation["cumm_distance"].apply(lambda x:SVGMaker.__scale_with_border(x,min_dist,max_dist,border=route_styler.path_width))
 
         elevation["point_str"]=elevation.apply(lambda row:"{},{}".format(str(int(row["scaled_distance"])),str(int(row["scaled_altitude"]))),axis=1)
 
         # content
         PLINTH=min(30,min_alt) # PLINTH is min alt above sea or 30m
-        bottom_of_path=int(min(1000-BORDER,elevation["scaled_altitude"].max()+PLINTH))
+        bottom_of_path=int(min(1000-route_styler.path_width,elevation["scaled_altitude"].max()+PLINTH))
         point_str=" ".join(elevation["point_str"].tolist())
         point_str="{},{} ".format(elevation["scaled_distance"].min(),bottom_of_path)+point_str+" {},{}".format(elevation["scaled_distance"].max(),bottom_of_path)
-        style_str='fill="none" stroke-width="5" stroke-linejoin="round" stroke="'+COLOUR+'"'
 
         # write to file
         svg_file=open(output_name+".svg","w+")
-        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(elevation["scaled_distance"].max()+BORDER,bottom_of_path+BORDER))
-        svg_file.write('<path class="route" {} d="M{}z" ></path>\n'.format(style_str,point_str))
+        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(elevation["scaled_distance"].max()+route_styler.path_width,bottom_of_path+route_styler.path_width))
+        svg_file.write('<path class="route" {} d="M{}z" ></path>\n'.format(route_styler.path_style_str(),point_str))
         svg_file.write("</svg>")
         svg_file.close()
 
@@ -245,10 +270,11 @@ class SVGMaker:
         return output_name+".css"
 
     # creates csv file which adds css to make a dash follow the path in an infintie loop
-    def __generate_css_for_animated_route(animation_length=10,output_name="animated_route"):
+    def __generate_css_for_animated_route(route_styler=None,output_name="animated_route"):
+        if (route_styler is None): route_styler=RouteStyler()
         css_file=open(output_name+".css","w+")
 
-        css_file.write(".route {{\n\tstroke-dasharray:1000;\n\tstroke-dashoffset:1000;\n\tanimation: draw {}s linear infinite;\n}}\n\n".format(animation_length))
+        css_file.write(".animated_route {{\n\tstroke-dasharray:1000;\n\tstroke-dashoffset:1000;\n\tanimation: draw {}s linear infinite;\n}}\n\n".format(route_styler.animation_length))
         css_file.write("@keyframes draw {\n\t0%{\n\t\tstroke-dashoffset:0;\n\t}\n}")
 
         css_file.close()
@@ -256,11 +282,12 @@ class SVGMaker:
         return output_name+".css"
 
     # creates js file which updates the dash offset & length so that the loop is seemless
-    def __generate_js_for_animated_route(output_name="animated_route"):
+    def __generate_js_for_animated_route(route_styler=None,output_name="animated_route"):
+        if (route_styler is None): route_styler=RouteStyler()
         js_file=open(output_name+".js","w+")
 
-        js_file.write("document.addEventListener('DOMContentLoaded', function() {\n\tupdate_stroke_dash(2);\n});\n\n")
-        js_file.write("function update_stroke_dash(num_dashs) {\n\tvar path=document.querySelector('.route');\n\tvar length=path.getTotalLength();\n\tvar dash_length=length/num_dashs;\n\tpath.style.strokeDasharray=dash_length;\n\tpath.style.strokeDashoffset=-(dash_length*2);\n}")
+        js_file.write("document.addEventListener('DOMContentLoaded', function() {{\n\tupdate_stroke_dash({});\n}});\n\n".format(route_styler.num_dashes))
+        js_file.write("function update_stroke_dash(num_dashs) {\n\tvar path=document.querySelector('.animated_route');\n\tvar length=path.getTotalLength();\n\tvar dash_length=length/num_dashs;\n\tpath.style.strokeDasharray=dash_length;\n\tpath.style.strokeDashoffset=-(dash_length*2);\n}")
 
         js_file.close()
         return output_name+".js"
@@ -289,10 +316,12 @@ if __name__=="__main__":
     data,metadata=reader.read("examples\example_run.gpx")
     df=reader.data_to_dataframe(data)
 
+    # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12)
     # SVGMaker.generate_route_svg(df,html=True)
-    SVGMaker.generate_route_svg(df,html=True,animated=True,animation_length=5)
+    # SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
 
-    # SVGMaker.generate_elevation_svg(df)
+    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="red")
+    SVGMaker.generate_elevation_svg(df,html=True,route_styler=styler)
 
     # hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
     # SVGMaker.generate_histogram(hist_data)
