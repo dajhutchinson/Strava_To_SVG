@@ -1,12 +1,7 @@
 """
     TODO
-    Animate route (overlay another path and use dash offset)
-    Animate elevation
-    Styling
-    Check scaling
-    Animation
-    Distance Marker
-    Legend?
+    Distance Markers
+    More Histograms (generalise)
 """
 from GPSReader import GPSReader
 from GPSEvaluator import GPSEvaluator
@@ -150,16 +145,25 @@ class SVGMaker:
         PLINTH=min(30,min_alt) # PLINTH is min alt above sea or 30m
         bottom_of_path=int(min(1000-route_styler.path_width,elevation["scaled_altitude"].max()+PLINTH))
         point_str=" ".join(elevation["point_str"].tolist())
-        point_str="{},{} ".format(elevation["scaled_distance"].min(),bottom_of_path)+point_str+" {},{}".format(elevation["scaled_distance"].max(),bottom_of_path)
+        point_str="{},{} ".format(elevation["scaled_distance"].min(),bottom_of_path)+point_str+" {},{}".format(elevation["scaled_distance"].max(),bottom_of_path)+" {},{} ".format(elevation["scaled_distance"].min()-route_styler.path_width/2,bottom_of_path)
 
         # write to file
         svg_file=open(output_name+".svg","w+")
         svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(elevation["scaled_distance"].max()+route_styler.path_width,bottom_of_path+route_styler.path_width))
-        svg_file.write('<path class="route" {} d="M{}z" ></path>\n'.format(route_styler.path_style_str(),point_str))
+        svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(route_styler.path_style_str(),point_str))
+
+        if (route_styler.animated):
+            svg_file.write('<path class="animated_route" {} d="M{}" ></path>\n'.format(route_styler.animated_path_style_str(),point_str))
+            css_file_name=SVGMaker.__generate_css_for_animated_route(route_styler=route_styler,output_name=output_name)
+            js_file_name=SVGMaker.__generate_js_for_animated_route(route_styler=route_styler,output_name=output_name)
+        else:
+            css_file_name=None
+            js_file_name =None
+
         svg_file.write("</svg>")
         svg_file.close()
 
-        if (html): SVGMaker.generate_html_for_svg(output_name+".svg",output_name=output_name)
+        if (html): SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,js_file_name=js_file_name,output_name=output_name)
 
         return output_name+".svg"
 
@@ -316,12 +320,13 @@ if __name__=="__main__":
     data,metadata=reader.read("examples\example_run.gpx")
     df=reader.data_to_dataframe(data)
 
-    # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12)
     # SVGMaker.generate_route_svg(df,html=True)
-    # SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
+    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12)
+    SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
 
-    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="red")
-    SVGMaker.generate_elevation_svg(df,html=True,route_styler=styler)
+    # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="black")
+    # SVGMaker.generate_elevation_svg(df,html=True,route_styler=styler)
+    # SVGMaker.generate_elevation_svg(df,html=True,route_styler=styler)
 
     # hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
     # SVGMaker.generate_histogram(hist_data)
