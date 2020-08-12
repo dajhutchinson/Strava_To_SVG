@@ -1,6 +1,7 @@
 """
     TODO
-    Animate elevation & route
+    Animate route (overlay another path and use dash offset)
+    Animate elevation
     Styling
     Check scaling
     Animation
@@ -52,8 +53,9 @@ class SVGMaker:
     """
     PLOTS
     """
+    """ROUTE"""
     # generate a path of the route taken
-    def generate_route_svg(df,output_name="route"):
+    def generate_route_svg(df,output_name="route",animated=False,animation_length=10,html=False) -> str:
         BORDER=10
         COLOUR="#214025"
         lat_lon_data=df[["position_lat","position_lon"]].copy()
@@ -85,10 +87,20 @@ class SVGMaker:
 
         svg_file.close()
 
+        if (animated):
+            css_file_name=SVGMaker.__generate_css_for_animated_route(animation_length=animation_length,output_name=output_name)
+            js_file_name=SVGMaker.__generate_js_for_animated_route(output_name=output_name)
+        else:
+            css_file_name=None
+            js_file_name =None
+
+        if (html): SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,js_file_name=js_file_name,output_name=output_name)
+
         return output_name+".svg"
 
+    """ELEVATION"""
     # generate an svg path of the elevation against distance
-    def generate_elevation_svg(df,output_name="elevation"):
+    def generate_elevation_svg(df,output_name="elevation",html=False) -> str:
         BORDER=10
         COLOUR="#214025"
 
@@ -122,10 +134,13 @@ class SVGMaker:
         svg_file.write("</svg>")
         svg_file.close()
 
+        if (html): SVGMaker.generate_html_for_svg(output_name+".svg",output_name=output_name)
+
         return output_name+".svg"
 
+    """HISTOGRAM"""
     # makes horizontal histogram using data from GPSEvaluator.split_histogram_data()
-    def make_histogram(data:pd.Series,output_name="hist",hist_styler=None):
+    def generate_histogram(data:pd.Series,output_name="hist",hist_styler=None,html=False) -> str:
         if hist_styler is None: hist_styler=HistogramStyler()
         # define bar params
         height=min(int(100/data.size),10)-2
@@ -157,12 +172,14 @@ class SVGMaker:
         svg_file.write("</svg>")
 
         svg_file.close()
+
+        if (html): SVGMaker.generate_html_for_svg(output_name+".svg",output_name=output_name)
+
         return output_name+".svg"
 
     # makes animated horizontal histogram using data from GPSEvaluator.split_histogram_data_per_km()
     # animation_length:seconds
-    def make_animated_histogram(df:pd.DataFrame,animation_length=10,output_name="animated_hist",html=False):
-        # TODO - add text
+    def generate_animated_histogram(df:pd.DataFrame,animation_length=10,output_name="animated_hist",html=False) -> str:
         x_axis=10 # x value of axis
         height=min(int(100/df.shape[0]),10)-2
         y_max=2+(df.shape[0]*(2+height))
@@ -201,18 +218,17 @@ class SVGMaker:
         svg_file.close()
 
         # extras
-        frame_length=round(animation_length/widths.shape[1],1)
-        SVGMaker.__generate_css_for_animated_histogram(widths.columns,frame_length=frame_length,output_name=output_name)
+        SVGMaker.__generate_css_for_animated_histogram(widths.columns,animation_length=animation_length,output_name=output_name)
         if (html): SVGMaker.generate_html_for_svg(output_name+".svg",output_name+".css",output_name)
 
         return output_name+".svg"
 
     """
-    STYLING
+    ANIMATION
     """
     # creates csv file which adds animation to histogram
-    def __generate_css_for_animated_histogram(col_labels,frame_length=1,output_name="animated_hist"):
-        frame_length=max(frame_length,.1)
+    def __generate_css_for_animated_histogram(col_labels,animation_length=10,output_name="animated_hist"):
+        frame_length=max(round(animation_length/len(col_labels),1),.1)
         css_file=open(output_name+".css","w+")
         css_file.write(".hist_bar {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\topacity: 0;\n}\n\n")
         css_file.write(".hist_bar:hover {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\tfill: #547358!important\n}\n\n")
@@ -228,16 +244,38 @@ class SVGMaker:
         css_file.close()
         return output_name+".css"
 
+    # creates csv file which adds css to make a dash follow the path in an infintie loop
+    def __generate_css_for_animated_route(animation_length=10,output_name="animated_route"):
+        css_file=open(output_name+".css","w+")
+
+        css_file.write(".route {{\n\tstroke-dasharray:1000;\n\tstroke-dashoffset:1000;\n\tanimation: draw {}s linear infinite;\n}}\n\n".format(animation_length))
+        css_file.write("@keyframes draw {\n\t0%{\n\t\tstroke-dashoffset:0;\n\t}\n}")
+
+        css_file.close()
+
+        return output_name+".css"
+
+    # creates js file which updates the dash offset & length so that the loop is seemless
+    def __generate_js_for_animated_route(output_name="animated_route"):
+        js_file=open(output_name+".js","w+")
+
+        js_file.write("document.addEventListener('DOMContentLoaded', function() {\n\tupdate_stroke_dash(2);\n});\n\n")
+        js_file.write("function update_stroke_dash(num_dashs) {\n\tvar path=document.querySelector('.route');\n\tvar length=path.getTotalLength();\n\tvar dash_length=length/num_dashs;\n\tpath.style.strokeDasharray=dash_length;\n\tpath.style.strokeDashoffset=-(dash_length*2);\n}")
+
+        js_file.close()
+        return output_name+".js"
+
     """
     HELPERS
     """
     # generates html file for visulasing svg
-    def generate_html_for_svg(svg_file_name,css_file_name=None,output_name="example"):
+    def generate_html_for_svg(svg_file_name,css_file_name=None,js_file_name=None,output_name="example"):
         html_file=open(output_name+".html","w+")
-        html_file.write('<html>\n')
+        html_file.write('<html>\n\t<head>\n')
         if css_file_name is not None:
-            html_file.write('\t<head>\n\t\t<link rel="stylesheet" type="text/css" href={}>\n\t</head>\n'.format(css_file_name))
-        html_file.write('\t<body>\n')
+            html_file.write('\t\t<link rel="stylesheet" type="text/css" href={}>\n'.format(css_file_name))
+            html_file.write('\t\t<script src="{}"></script>\n'.format(js_file_name))
+        html_file.write('\t</head>\n\t<body>\n')
 
         with open(svg_file_name,"r") as svg_file:
             for line in svg_file:
@@ -251,11 +289,13 @@ if __name__=="__main__":
     data,metadata=reader.read("examples\example_run.gpx")
     df=reader.data_to_dataframe(data)
 
-    SVGMaker.generate_route_svg(df)
-    SVGMaker.generate_elevation_svg(df)
+    # SVGMaker.generate_route_svg(df,html=True)
+    SVGMaker.generate_route_svg(df,html=True,animated=True,animation_length=5)
+
+    # SVGMaker.generate_elevation_svg(df)
 
     # hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-    # SVGMaker.make_histogram(hist_data)
-    #
+    # SVGMaker.generate_histogram(hist_data)
+
     # hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-    # SVGMaker.make_animated_histogram(hist_data_per_km,html=True,animation_length=3)
+    # SVGMaker.generate_animated_histogram(hist_data_per_km,html=True,animation_length=3)
