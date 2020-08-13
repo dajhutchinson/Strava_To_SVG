@@ -130,7 +130,7 @@ class SVGMaker:
     """
     """ROUTE"""
     # generate a path of the route taken
-    def generate_route_svg(df,output_name="route",route_styler=None,html=False) -> dict:
+    def generate_route_svg(df,output_name="test/route",route_styler=None,html=False) -> dict:
         files={"svg":output_name+".svg"}
 
         if ("position_lat" not in df) or ("position_lon" not in df): return None # insufficient data
@@ -222,7 +222,7 @@ class SVGMaker:
 
     """ELEVATION"""
     # generate an svg path of the elevation against distance
-    def generate_elevation_svg(df,output_name="elevation",elevation_styler=None,html=False) -> dict:
+    def generate_elevation_svg(df,output_name="test/elevation",elevation_styler=None,html=False) -> dict:
         files={"svg":output_name+".svg"}
 
         # check data exists
@@ -280,7 +280,7 @@ class SVGMaker:
 
     """HISTOGRAM"""
     # makes horizontal histogram using data from GPSEvaluator.split_histogram_data()
-    def generate_histogram(data:pd.Series,hist_styler=None,output_name="hist",html=False) -> dict:
+    def generate_histogram(data:pd.Series,hist_styler=None,output_name="test/hist",html=False) -> dict:
         files={"svg":output_name+".svg"}
         if hist_styler is None: hist_styler=HistogramStyler()
 
@@ -345,7 +345,7 @@ class SVGMaker:
     """ANIMATED HISTOGRAM"""
     # makes animated horizontal histogram using data from GPSEvaluator.split_histogram_data_per_km()
     # animation_length:seconds
-    def generate_animated_histogram(df:pd.DataFrame,hist_styler=None,output_name="animated_hist",html=False) -> dict:
+    def generate_animated_histogram(df:pd.DataFrame,hist_styler=None,output_name="test/animated_hist",html=False) -> dict:
         files={"svg":output_name+".svg"}
         if (hist_styler is None): hist_styler=HistogramStyler()
 
@@ -407,7 +407,7 @@ class SVGMaker:
     ANIMATION
     """
     # creates csv file which adds animation to histogram
-    def __generate_css_for_animated_histogram(col_labels,hist_styler,output_name="animated_hist"):
+    def __generate_css_for_animated_histogram(col_labels,hist_styler,output_name="test/animated_hist"):
         frame_length=max(round(hist_styler.animation_length/len(col_labels),1),.1)
         css_file=open(output_name+".css","w+")
         css_file.write(".animated_hist_bar {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\topacity: 0;\n}\n\n")
@@ -425,7 +425,7 @@ class SVGMaker:
         return output_name+".css"
 
     # creates csv file which adds css to make a dash follow the path in an infintie loop
-    def __generate_css_for_animated_route(class_name,route_styler=None,output_name="animated_route"):
+    def __generate_css_for_animated_route(class_name,route_styler=None,output_name="test/animated_route"):
         if (route_styler is None): route_styler=RouteStyler()
         css_file=open(output_name+".css","w+")
 
@@ -437,7 +437,7 @@ class SVGMaker:
         return output_name+".css"
 
     # creates js file which updates the dash offset & length so that the loop is seemless
-    def __generate_js_for_animated_route(class_name,route_styler=None,output_name="animated_route"):
+    def __generate_js_for_animated_route(class_name,route_styler=None,output_name="test/animated_route"):
         if (route_styler is None): route_styler=RouteStyler()
         js_file=open(output_name+".js","w+")
 
@@ -451,7 +451,7 @@ class SVGMaker:
     HELPERS
     """
     # generates html file for visulasing svg
-    def generate_html_for_svg(svg_file_name,css_file_name=None,js_file_name=None,output_name="example") -> str:
+    def generate_html_for_svg(svg_file_name,css_file_name=None,js_file_name=None,output_name="test/example") -> str:
         html_file=open(output_name+".html","w+")
         html_file.write('<html>\n\t<head>\n')
         if css_file_name is not None:
@@ -467,7 +467,7 @@ class SVGMaker:
         return output_name+".html"
 
     # html file with multiple plots on
-    def generate_html_for_many_svg(files:"[{'svg':str,'css':str,'js':str}]",per_row=2,output_name="many_examples"):
+    def generate_html_for_many_svg(files:"[{'svg':str,'css':str,'js':str}]",per_row=2,output_name="test/many_examples",path_to_remove="test/"):
         svg_files=[dic["svg"] for dic in files if "svg" in dic]
         css_files=[dic["css"] for dic in files if "css" in dic]
         js_files= [dic["js"]  for dic in files if "js" in dic]
@@ -478,12 +478,12 @@ class SVGMaker:
         if (len(css_files)+len(js_files)>0):
             html_file.write("\t<head>\n")
             html_file.write("\t\t<style>::-webkit-scrollbar {display: none;}</style>\n")
-            for js_file in js_files: html_file.write('\t\t<script src="{}"></script>\n'.format(js_file))
-            for css_file in css_files: html_file.write('\t\t<link rel="stylesheet" type="text/css" href={}>\n'.format(css_file))
+            for js_file in js_files: html_file.write('\t\t<script src="{}"></script>\n'.format(js_file.replace(path_to_remove,"")))
+            for css_file in css_files: html_file.write('\t\t<link rel="stylesheet" type="text/css" href={}>\n'.format(css_file.replace(path_to_remove,"")))
             html_file.write("\t</head>\n")
 
         if (len(svg_files)>0):
-            dim=int(90/per_row)
+            dim=int(99/per_row)
             html_file.write("\t<body>\n")
             for svg_file in svg_files:
                 html_file.write("\t\t<div class='container' style='display:inline-flex;width:{}vw;height:{}vw'>\n".format(dim,dim))
@@ -500,32 +500,42 @@ class SVGMaker:
 
         return output_name+".html"
 
-def plot_all(file_path) -> str:
+def plot_all(file_path,to_plot={"route":None,"elevation":None,"histogram":None,"animated_histogram":None}) -> str:
+
     reader=GPSReader()
     data,metadata=reader.read(file_path)
     df=reader.data_to_dataframe(data)
 
     files=[]
+    if "route" in to_plot:
+        styler=RouteStyler() if (to_plot["route"] is None) else to_plot["route"]
+        new_files=SVGMaker.generate_route_svg(df,route_styler=styler)
+        files.append(new_files)
 
-    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple")
-    new_files=SVGMaker.generate_route_svg(df,route_styler=styler)
-    files.append(new_files)
+    if "elevation" in to_plot:
+        styler=ElevationStyler() if (to_plot["elevation"] is None) else to_plot["elevation"]
+        new_files=SVGMaker.generate_elevation_svg(df,elevation_styler=styler)
+        files.append(new_files)
 
-    styler=ElevationStyler(animated=True,animation_length=5,num_dashes=12,plinth_height=30)
-    new_files=SVGMaker.generate_elevation_svg(df,elevation_styler=styler)
-    files.append(new_files)
+    if "histogram" in to_plot:
+        styler=HistogramStyler() if (to_plot["histogram"] is None) else to_plot["histogram"]
+        hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
+        new_files=new_files=SVGMaker.generate_histogram(hist_data,hist_styler=styler,output_name="test/hist")
+        files.append(new_files)
 
-    hist_styler=HistogramStyler(font_anchor="start")
-    hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-    new_files=new_files=SVGMaker.generate_histogram(hist_data,hist_styler=hist_styler,output_name="hist")
-    files.append(new_files)
-
-    hist_styler=HistogramStyler(font_anchor="end",animation_length=3)
-    hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-    new_files=SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=hist_styler)
-    files.append(new_files)
+    if "animated_histogram" in to_plot:
+        styler=HistogramStyler() if (to_plot["animated_histogram"] is None) else to_plot["animated_histogram"]
+        hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
+        new_files=SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=styler)
+        files.append(new_files)
 
     return SVGMaker.generate_html_for_many_svg(files,per_row=2)
 
 if __name__=="__main__":
-    print(plot_all("examples\Liverpool_HM_1_35_01_PB_.gpx"))
+    plots={
+        "route":RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple"),
+        "elevation":ElevationStyler(animated=True,animation_length=5,num_dashes=12,plinth_height=30),
+        #"histogram":HistogramStyler(font_anchor="start"),
+        "animated_histogram":HistogramStyler(font_anchor="end",animation_length=3)
+    }
+    print(plot_all("examples\Liverpool_HM_1_35_01_PB_.gpx",to_plot=plots))
