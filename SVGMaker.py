@@ -1,7 +1,11 @@
 """
     TODO
-    Distance Markers
+    Histogram styline
+    breakdown functions
+    Premade colour schemes
     More Histograms (generalise)
+    Multiple routes
+    Colour route depending upon elevation
 """
 from GPSReader import GPSReader
 from GPSEvaluator import GPSEvaluator
@@ -11,16 +15,30 @@ import pandas as pd
 # define style used for histograms
 class HistogramStyler:
 
-    def __init__(self,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",font_size=12,font_family="arial"):
+    def __init__(self,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",
+                text=True,font_size=12,font_family="arial",font_anchor="start",
+                axis=True,axis_x_pos=10,axis_colour="#000",axis_width=1,
+                animation_length=10):
+
+        # rect
+        self.stroke_width=stroke_width # border
+        self.stroke_colour=stroke_colour
         self.rect_colour=rect_colour # fill colour of rect
 
-        # rect border
-        self.stroke_width=stroke_width
-        self.stroke_colour=stroke_colour
-
         # text styling
+        self.text=text
         self.font_size=font_size
         self.font_family=font_family
+        self.font_anchor=font_anchor
+
+        # x value of vertical axis
+        self.axis=axis
+        self.axis_x_pos=axis_x_pos
+        self.axis_colour=axis_colour
+        self.axis_width=axis_width
+
+        # animation
+        self.animation_length=animation_length
 
     # string used for style tag of rect svg object
     def rect_style_str(self) -> str:
@@ -29,6 +47,10 @@ class HistogramStyler:
     # string used for style tag of text svg object
     def text_style_str(self) -> str:
         return "font-size:{}px;font-family:{}".format(self.font_size,self.font_family)
+
+    # string used for style tag of axis rect
+    def axis_style_str(self) -> str:
+        return "stroke:{};stroke-width:{}".format(self.axis_colour,self.axis_width)
 
 class RouteStyler:
 
@@ -72,6 +94,21 @@ class RouteStyler:
     def animated_path_style_str(self) -> str:
         return 'fill="{}" stroke-width="{}" stroke-linejoin="{}" stroke="{}"'.format("none",self.path_width,self.path_linejoin,self.dash_colour)
 
+class ElevationStyler(RouteStyler):
+
+    def __init__(self,plinth_height=30,
+        border_width=10,path_colour="#214025",fill_colour="none",path_width=5,path_linejoin="round",
+        animated=False,animation_length=10,num_dashes=2,dash_colour="#547358",
+        split_dist=None,split_marker_colour="#000",split_marker_width=5,
+        start_marker=False,start_marker_colour="green",start_marker_width=5,
+        finish_marker=False,finish_marker_colour="red",finish_marker_width=5):
+        super().__init__(border_width,path_colour,fill_colour,path_width,path_linejoin,
+            animated,animation_length,num_dashes,dash_colour,
+            split_dist,split_marker_colour,split_marker_width,
+            start_marker,start_marker_colour,start_marker_width,
+            finish_marker,finish_marker_colour,finish_marker_width)
+        self.plinth_height=plinth_height
+
 class SVGMaker:
 
     """
@@ -96,19 +133,20 @@ class SVGMaker:
     """ROUTE"""
     # generate a path of the route taken
     def generate_route_svg(df,output_name="route",route_styler=None,html=False) -> str:
-        if route_styler is None: route_styler=RouteStyler() # ensure a style is applied
-
+        if ("position_lat" not in df) or ("position_lon" not in df): return None # insufficient data
         lat_lon_data=df[["position_lat","position_lon"]].copy() # ensure data isn't affected
 
-        flip_y=lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x # flips y co-ord as 0 is top and 1000 is bottom
+        if route_styler is None: route_styler=RouteStyler() # ensure a style is applied
 
-        min_lat=lat_lon_data["position_lat"].min(); max_lat=lat_lon_data["position_lat"].max() # determine range of values
-        min_lon=lat_lon_data["position_lon"].min(); max_lon=lat_lon_data["position_lon"].max()
-        lat_diff=max_lat-min_lat; lon_diff=max_lon-min_lon; max_diff=max(lon_diff,lat_diff)
-        lat_scale=lat_diff/max_diff; lon_scale=lon_diff/max_diff # ensure scaling is good
+        flip_y=lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x # flips y co-ord as 0 is top and 1000 is bottom
+        scaling={} # store values to help with scaling
+        scaling["min_lat"]=lat_lon_data["position_lat"].min(); scaling["max_lat"]=lat_lon_data["position_lat"].max() # determine range of values
+        scaling["min_lon"]=lat_lon_data["position_lon"].min(); scaling["max_lon"]=lat_lon_data["position_lon"].max()
+        lat_diff=scaling["max_lat"]-scaling["min_lat"]; lon_diff=scaling["max_lon"]-scaling["min_lon"]; max_diff=max(lon_diff,lat_diff)
+        scaling["lat_scale"]=lat_diff/max_diff; scaling["lon_scale"]=lon_diff/max_diff # ensure scaling is good
 
         # path string
-        point_str=SVGMaker.__route_svg_path_string(lat_lon_data,route_styler,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
+        point_str=SVGMaker.__route_svg_path_string(lat_lon_data,route_styler,scaling,flip_y)
 
         # write svg file
         svg_file=open(output_name+".svg","w+")
@@ -120,11 +158,11 @@ class SVGMaker:
         else: css_file_name=None; js_file_name =None
 
         # add split markers
-        if (route_styler.split_dist is not None): SVGMaker.__add_route_svg_split_markers(svg_file,df,route_styler,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
+        if (route_styler.split_dist is not None): SVGMaker.__add_route_svg_split_markers(svg_file,df,route_styler,scaling,flip_y)
 
         # add special markers
-        if (route_styler.finish_marker): SVGMaker.__add_route_svg_special_markers("finish",route_styler.finish_marker_width,route_styler.finish_marker_colour,route_styler.border_width,svg_file,df,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
-        if (route_styler.start_marker): SVGMaker.__add_route_svg_special_markers("start",route_styler.start_marker_width,route_styler.start_marker_colour,route_styler.border_width,svg_file,df,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y)
+        if (route_styler.finish_marker): SVGMaker.__add_route_svg_special_markers("finish",route_styler.finish_marker_width,route_styler.finish_marker_colour,route_styler.border_width,svg_file,df,scaling,flip_y)
+        if (route_styler.start_marker): SVGMaker.__add_route_svg_special_markers("start",route_styler.start_marker_width,route_styler.start_marker_colour,route_styler.border_width,svg_file,df,scaling,flip_y)
 
         # end file
         svg_file.write("</svg>")
@@ -136,13 +174,11 @@ class SVGMaker:
         return output_name+".svg"
 
     # generate string for path of route
-    def __route_svg_path_string(lat_lon_data,route_styler,
-                                min_lat,max_lat,lat_scale,
-                                min_lon,max_lon,lon_scale,flip_y) -> str:
+    def __route_svg_path_string(lat_lon_data,route_styler,scaling,flip_y) -> str:
         # scale gps coords to [0-1000] leaving a border
-        lat_lon_data["scaled_lat"]=lat_lon_data["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_scale,border=route_styler.border_width)
+        lat_lon_data["scaled_lat"]=lat_lon_data["position_lat"].apply(SVGMaker.__scale_with_border,min_v=scaling["min_lat"],max_v=scaling["max_lat"],scale=scaling["lat_scale"],border=route_styler.border_width)
         lat_lon_data["scaled_lat"]=lat_lon_data["scaled_lat"].apply(flip_y) # flip since y increase as it goes down the page
-        lat_lon_data["scaled_lon"]=lat_lon_data["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_scale,border=route_styler.border_width).astype(int)
+        lat_lon_data["scaled_lon"]=lat_lon_data["position_lon"].apply(SVGMaker.__scale_with_border,min_v=scaling["min_lon"],max_v=scaling["max_lon"],scale=scaling["lon_scale"],border=route_styler.border_width).astype(int)
 
         # "x,y" string for each point
         lat_lon_data["point_str"]=lat_lon_data.apply(lambda row:"{},{}".format(str(int(row["scaled_lon"])),str(int(row["scaled_lat"]))),axis=1)
@@ -158,87 +194,88 @@ class SVGMaker:
         return css_file_name,js_file_name
 
     # add split markers to a route svg
-    def __add_route_svg_split_markers(svg_file,df:pd.DataFrame,route_styler:RouteStyler,min_lat,max_lat,lat_scale,min_lon,max_lon,lon_scale,flip_y):
+    def __add_route_svg_split_markers(svg_file,df:pd.DataFrame,route_styler:RouteStyler,scaling,flip_y):
         split_coords=GPSEvaluator.split_markers(df,route_styler.split_dist) # get marker lat,lon positions
 
         # scale to canvas
-        split_coords["scaled_lat"]=split_coords["position_lat"].apply(SVGMaker.__scale_with_border,min_v=min_lat,max_v=max_lat,scale=lat_scale,border=route_styler.border_width).astype(int)
+        split_coords["scaled_lat"]=split_coords["position_lat"].apply(SVGMaker.__scale_with_border,min_v=scaling["min_lat"],max_v=scaling["max_lat"],scale=scaling["lat_scale"],border=route_styler.border_width).astype(int)
         split_coords["scaled_lat"]=split_coords["scaled_lat"].apply(flip_y)
-        split_coords["scaled_lon"]=split_coords["position_lon"].apply(SVGMaker.__scale_with_border,min_v=min_lon,max_v=max_lon,scale=lon_scale,border=route_styler.border_width).astype(int)
+        split_coords["scaled_lon"]=split_coords["position_lon"].apply(SVGMaker.__scale_with_border,min_v=scaling["min_lon"],max_v=scaling["max_lon"],scale=scaling["lon_scale"],border=route_styler.border_width).astype(int)
 
         for _,row in split_coords.iterrows(): # add markers
             svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(row["scaled_lon"],row["scaled_lat"],route_styler.split_marker_width,route_styler.split_marker_colour))
 
         return svg_file
 
-    def __add_route_svg_special_markers(marker_type:str,marker_width:int,marker_colour:str,image_border,
-        svg_file,df:pd.DataFrame,
-        min_lat,max_lat,lat_scale,
-        min_lon,max_lon,lon_scale,flip_y):
+    def __add_route_svg_special_markers(marker_type:str,marker_width:int,marker_colour:str,image_border,svg_file,df:pd.DataFrame,scaling,flip_y):
         lat,lon=GPSEvaluator.important_points(df,name=marker_type)
 
-        scaled_lat=int(SVGMaker.__scale_with_border(lat,min_v=min_lat,max_v=max_lat,scale=lat_scale,border=image_border))
+        scaled_lat=int(SVGMaker.__scale_with_border(lat,min_v=scaling["min_lat"],max_v=scaling["max_lat"],scale=scaling["lat_scale"],border=image_border))
         scaled_lat=flip_y(scaled_lat)
-        scaled_lon=int(SVGMaker.__scale_with_border(lon,min_v=min_lon,max_v=max_lon,scale=lon_scale,border=image_border))
+        scaled_lon=int(SVGMaker.__scale_with_border(lon,min_v=scaling["min_lon"],max_v=scaling["max_lon"],scale=scaling["lon_scale"],border=image_border))
 
         svg_file.write('<circle cx="{}" cy="{}" r="{}" fill="{}" />'.format(scaled_lon,scaled_lat,marker_width,marker_colour))
 
     """ELEVATION"""
     # generate an svg path of the elevation against distance
-    def generate_elevation_svg(df,output_name="elevation",route_styler=None,html=False) -> str:
-        if (route_styler is None): route_styler=RouteStyler()
-        COLOUR="#214025"
-
+    def generate_elevation_svg(df,output_name="elevation",elevation_styler=None,html=False) -> str:
         # check data exists
-        if "cumm_distance" in df: elevation=df[["cumm_distance","altitude"]].copy(deep=True) # data to be used
+        if "cumm_distance" in df: elevation_df=df[["cumm_distance","altitude"]].copy(deep=True) # data to be used
         elif ("position_lat" in df.columns) and ("position_lon" in df.columns):
             df["cumm_distance"]=GPSEvaluator.cumm_distance(df)
-            elevation=df[["cumm_distance","altitude"]].copy(deep=True)
+            elevation_df=df[["cumm_distance","altitude"]].copy(deep=True)
         else: return None # not enough data
 
+        if (elevation_styler is None): elevation_styler=ElevationStyler() # ensure styler exists
+
         # scale values for plot
-        min_alt=elevation["altitude"].min(); max_alt=elevation["altitude"].max()
-        min_dist=elevation["cumm_distance"].min(); max_dist=elevation["cumm_distance"].max()
+        scaling={}
+        scaling["min_alt"]=elevation_df["altitude"].min(); scaling["max_alt"]=elevation_df["altitude"].max()
+        scaling["min_dist"]=elevation_df["cumm_distance"].min(); scaling["max_dist"]=elevation_df["cumm_distance"].max()
 
-        elevation["scaled_altitude"]=elevation["altitude"].apply(lambda x:SVGMaker.__scale_elevation(x,min_alt,max_alt,border=route_styler.path_width))
-        elevation["scaled_distance"]=elevation["cumm_distance"].apply(lambda x:SVGMaker.__scale_with_border(x,min_dist,max_dist,border=route_styler.path_width))
-
-        elevation["point_str"]=elevation.apply(lambda row:"{},{}".format(str(int(row["scaled_distance"])),str(int(row["scaled_altitude"]))),axis=1)
-
-        # content
-        PLINTH=min(30,min_alt) # PLINTH is min alt above sea or 30m
-        bottom_of_path=int(min(1000-route_styler.path_width,elevation["scaled_altitude"].max()+PLINTH))
-        point_str=" ".join(elevation["point_str"].tolist())
-        point_str="{},{} ".format(elevation["scaled_distance"].min(),bottom_of_path)+point_str+" {},{}".format(elevation["scaled_distance"].max(),bottom_of_path)+" {},{} ".format(elevation["scaled_distance"].min()-route_styler.path_width/2,bottom_of_path)
+        # path string
+        point_str,bottom_of_path=SVGMaker.__elevation_svg_path_string(elevation_df,elevation_styler,scaling)
 
         # write to file
         svg_file=open(output_name+".svg","w+")
-        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(elevation["scaled_distance"].max()+route_styler.path_width,bottom_of_path+route_styler.path_width))
-        svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(route_styler.path_style_str(),point_str))
+        svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 {} {}" width="100%" height="100%" version="1.1">\n'.format(elevation_df["scaled_distance"].max()+elevation_styler.path_width,bottom_of_path+elevation_styler.path_width))
+        svg_file.write('<path class="route" {} d="M{}" ></path>\n'.format(elevation_styler.path_style_str(),point_str))
 
-        if (route_styler.animated):
-            svg_file.write('<path class="animated_route" {} d="M{}" ></path>\n'.format(route_styler.animated_path_style_str(),point_str))
-            css_file_name=SVGMaker.__generate_css_for_animated_route(route_styler=route_styler,output_name=output_name)
-            js_file_name=SVGMaker.__generate_js_for_animated_route(route_styler=route_styler,output_name=output_name)
-        else:
-            css_file_name=None
-            js_file_name =None
+        # add animation
+        if (elevation_styler.animated): css_file_name,js_file_name=SVGMaker.__add_route_svg_animation(svg_file,elevation_styler,point_str,output_name)
+        else: css_file_name=None; js_file_name =None
 
+        # end file
         svg_file.write("</svg>")
         svg_file.close()
 
+        # html for preview
         if (html): SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,js_file_name=js_file_name,output_name=output_name)
 
         return output_name+".svg"
 
+    def __elevation_svg_path_string(elevation_df,elevation_styler,scaling):
+        elevation_df["scaled_altitude"]=elevation_df["altitude"].apply(lambda x:SVGMaker.__scale_elevation(x,scaling["min_alt"],scaling["max_alt"],border=elevation_styler.path_width))
+        elevation_df["scaled_distance"]=elevation_df["cumm_distance"].apply(lambda x:SVGMaker.__scale_with_border(x,scaling["min_dist"],scaling["max_dist"],border=elevation_styler.path_width))
+
+        elevation_df["point_str"]=elevation_df.apply(lambda row:"{},{}".format(str(int(row["scaled_distance"])),str(int(row["scaled_altitude"]))),axis=1)
+
+        # content
+        plinth_height=max(0,min(30,elevation_styler.plinth_height)) # min alt above sea or defined height
+        bottom_of_path=int(min(1000-elevation_styler.path_width,elevation_df["scaled_altitude"].max()+plinth_height))
+        point_str=" ".join(elevation_df["point_str"].tolist())
+        point_str="{},{} ".format(elevation_df["scaled_distance"].min(),bottom_of_path)+point_str+" {},{}".format(elevation_df["scaled_distance"].max(),bottom_of_path)+" {},{} ".format(elevation_df["scaled_distance"].min()-elevation_styler.path_width/2,bottom_of_path)
+
+        return point_str, bottom_of_path
+
     """HISTOGRAM"""
     # makes horizontal histogram using data from GPSEvaluator.split_histogram_data()
-    def generate_histogram(data:pd.Series,output_name="hist",hist_styler=None,html=False) -> str:
+    def generate_histogram(data:pd.Series,hist_styler=None,output_name="hist",html=False) -> str:
         if hist_styler is None: hist_styler=HistogramStyler()
-        # define bar params
+
+        # calculate bar heights
         height=min(int(100/data.size),10)-2
         y_max=2+(data.size*(2+height))
-
         hist_styler.font_size=height
 
         # calculate bar widths
@@ -248,46 +285,96 @@ class SVGMaker:
         svg_file=open(output_name+".svg","w+")
         svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 140 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
 
-        # add axes
-        x=2; count=0
-        for ind,width in widths.iteritems():
-            y=2+count*(2+height)
-            svg_file.write('<rect class="hist_bar" x="{}" y="{}" width="{}" height="{}" '.format(x,y,width,height)) # dimensions
-            svg_file.write('style="{}">'.format(hist_styler.rect_style_str())) # styling
-            svg_file.write('</rect>\n')
-            count+=1
+        # add bars
+        x_poss=SVGMaker.__add_histogram_bars(svg_file,widths,hist_styler)
 
-            if (width!=0):
-                svg_file.write('<text class="hist_text" x="{}" y="{}" dy="{}" style="{}">{}</text>\n'.format(width+3,y,height-1,hist_styler.text_style_str(),ind))
+        # add text
+        if (hist_styler.text):
+            labels=[SVGMaker.__seconds_to_time_str(val) for val in widths.index]
+            SVGMaker.__add_histogram_text(svg_file,x_poss,labels,hist_styler)
 
-        # add axes
-        svg_file.write('<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(x,x,y_max)) # y axis
+        # add axis
+        if (hist_styler.axis): SVGMaker.__add_histogram_axis(svg_file,hist_styler,y_max)
+
+        # close file
         svg_file.write("</svg>")
-
         svg_file.close()
 
         if (html): SVGMaker.generate_html_for_svg(output_name+".svg",output_name=output_name)
 
         return output_name+".svg"
 
+    # add bars to histogram
+    def __add_histogram_bars(svg_file,widths:pd.DataFrame,hist_styler:HistogramStyler) -> int:
+        height=min(int(100/widths.shape[0]),10)-2
+        count=0; x_poss=[]
+        for ind,width in widths.iteritems():
+            y=2+count*(2+height)
+            svg_file.write('<rect class="hist_bar" x="{}" y="{}" width="{}" height="{}" '.format(hist_styler.axis_x_pos,y,width,height)) # dimensions
+            x_poss.append(hist_styler.axis_x_pos+width+1)
+            svg_file.write('style="{}">'.format(hist_styler.rect_style_str())) # styling
+            svg_file.write('</rect>\n')
+            count+=1
+        return x_poss
+
+    # add labels to histogram bars
+    def __add_histogram_text(svg_file,x_poss:[int],labels:[str],hist_styler:HistogramStyler):
+        height=min(int(100/len(x_poss)),10)-2
+        for i in range(len(x_poss)):
+            x_pos=x_poss[i]; label=labels[i]
+            y=2+i*(2+height)
+            # add text to non-empty bars
+            if (x_pos!=hist_styler.axis_x_pos): svg_file.write('<text class="hist_text" x="{}" y="{}" dy="{}" text-anchor="{}" style="{}">{}</text>\n'.format(x_pos,y,height-1,hist_styler.font_anchor,hist_styler.text_style_str(),label))
+
+    def __add_histogram_axis(svg_file,hist_styler:HistogramStyler,y_max:int):
+        svg_file.write('<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="{}"></line>\n'.format(hist_styler.axis_x_pos,hist_styler.axis_x_pos,y_max,hist_styler.axis_style_str())) # y axis
+
     # makes animated horizontal histogram using data from GPSEvaluator.split_histogram_data_per_km()
     # animation_length:seconds
-    def generate_animated_histogram(df:pd.DataFrame,animation_length=10,output_name="animated_hist",html=False) -> str:
-        x_axis=10 # x value of axis
+    def generate_animated_histogram(df:pd.DataFrame,hist_styler=None,output_name="animated_hist",html=False) -> str:
+        if (hist_styler is None): hist_styler=HistogramStyler()
+
+        # calculate bar heights
         height=min(int(100/df.shape[0]),10)-2
         y_max=2+(df.shape[0]*(2+height))
+        hist_styler.font_size=height
 
         min_row_sum=df.sum(axis=1).min()
         max_row_sum=df.sum(axis=1).max()
-        max_bar_width=100-x_axis
-        widths=df.copy().apply(lambda x:(max_bar_width*x)/max_row_sum).astype(int)
+        max_bar_width=100-hist_styler.axis_x_pos
+        widths_df=df.copy().apply(lambda x:(max_bar_width*x)/max_row_sum).astype(int)
 
         svg_file=open(output_name+".svg","w+")
         svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 100 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
 
-        x={val:x_axis for val in widths.index}
-        for col in widths.columns:
-            column=widths[col]
+        # add_bars
+        SVGMaker.__add_animation_histogram_bars(svg_file,widths_df,hist_styler)
+
+        # add text
+        if (hist_styler.text):
+            x_poss=[hist_styler.axis_x_pos-1 for _ in range(widths_df.shape[0])]
+            labels=[SVGMaker.__seconds_to_time_str(val) for val in widths_df.index]
+            SVGMaker.__add_histogram_text(svg_file,x_poss,labels,hist_styler)
+
+        # add axis
+        if (hist_styler.axis): svg_file.write('\t<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(hist_styler.axis_x_pos,hist_styler.axis_x_pos,y_max)) # y axis
+
+        # end file
+        svg_file.write("</svg>")
+        svg_file.close()
+
+        css_file=SVGMaker.__generate_css_for_animated_histogram(widths_df.columns,hist_styler=hist_styler,output_name=output_name) # add animation
+        if (html): SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file,output_name=output_name) # html for previewing
+
+        return output_name+".svg"
+
+    # add bars for animated histogram (each bar is split up into km intervals)
+    def __add_animation_histogram_bars(svg_file,widths_df:pd.DataFrame,hist_styler:HistogramStyler):
+        height=min(int(100/widths_df.shape[0]),10)-2
+
+        x={val:hist_styler.axis_x_pos for val in widths_df.index}
+        for col in widths_df.columns:
+            column=widths_df[col]
             count=0
             for split,width in column.iteritems():
                 y=2+count*(2+height)
@@ -298,30 +385,12 @@ class SVGMaker:
                     svg_file.write('</rect>\n')
                 count+=1
 
-        count=0
-        for index,row in widths.iterrows():
-            y=2+count*(2+height); count+=1
-            label=SVGMaker.__seconds_to_time_str(index)
-            if (row.sum()!=0):
-                svg_file.write('<text class="hist_text" x={} y={} dy={} text-anchor="end" style="font-size:{}px">{}</text>\n'.format(x_axis-1,y,height-1,height,label))
-
-        svg_file.write('\t<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(x_axis,x_axis,y_max)) # y axis
-        svg_file.write("</svg>")
-
-        svg_file.close()
-
-        # extras
-        SVGMaker.__generate_css_for_animated_histogram(widths.columns,animation_length=animation_length,output_name=output_name)
-        if (html): SVGMaker.generate_html_for_svg(output_name+".svg",output_name+".css",output_name)
-
-        return output_name+".svg"
-
     """
     ANIMATION
     """
     # creates csv file which adds animation to histogram
-    def __generate_css_for_animated_histogram(col_labels,animation_length=10,output_name="animated_hist"):
-        frame_length=max(round(animation_length/len(col_labels),1),.1)
+    def __generate_css_for_animated_histogram(col_labels,hist_styler,output_name="animated_hist"):
+        frame_length=max(round(hist_styler.animation_length/len(col_labels),1),.1)
         css_file=open(output_name+".css","w+")
         css_file.write(".hist_bar {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\topacity: 0;\n}\n\n")
         css_file.write(".hist_bar:hover {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\tfill: #547358!important\n}\n\n")
@@ -381,19 +450,21 @@ class SVGMaker:
 
 if __name__=="__main__":
     reader=GPSReader()
-    data,metadata=reader.read("examples\Liverpool_HM_1_35_01_PB_.gpx")
+    data,metadata=reader.read("examples\example_run.gpx")
     df=reader.data_to_dataframe(data)
 
     # SVGMaker.generate_route_svg(df,html=True)
-    styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple")
-    SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
+    # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple")
+    # SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
 
-    # styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="black")
-    # SVGMaker.generate_elevation_svg(df,html=True,route_styler=styler)
-    # SVGMaker.generate_elevation_svg(df,html=True,route_styler=styler)
+    # SVGMaker.generate_elevation_svg(df,html=True)
+    # styler=ElevationStyler(animated=True,animation_length=5,num_dashes=12,fill_colour="pink",plinth_height=30)
+    # SVGMaker.generate_elevation_svg(df,html=True,elevation_styler=styler)
 
+    # hist_styler=HistogramStyler(font_anchor="start")
     # hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-    # SVGMaker.generate_histogram(hist_data)
-
+    # SVGMaker.generate_histogram(hist_data,hist_styler=hist_styler,html=True,output_name="hist")
+    #
+    # hist_styler=HistogramStyler(font_anchor="end",animation_length=3)
     # hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-    # SVGMaker.generate_animated_histogram(hist_data_per_km,html=True,animation_length=3)
+    # SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=hist_styler,html=True)
