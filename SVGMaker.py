@@ -171,7 +171,6 @@ class SVGMaker:
         svg_file.close()
 
         # html file for previewing
-        files={"svg":output_name+".svg"}
         if (html):
             html_file_name=SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,js_file_name=js_file_name,output_name=output_name)
             files["html"]=html_file_name
@@ -442,8 +441,8 @@ class SVGMaker:
         if (route_styler is None): route_styler=RouteStyler()
         js_file=open(output_name+".js","w+")
 
-        js_file.write("document.addEventListener('DOMContentLoaded', function() {{\n\tupdate_stroke_dash({});\n}});\n\n".format(route_styler.num_dashes))
-        js_file.write("function update_stroke_dash(num_dashs) {{\n\tvar path=document.querySelector('.{}');\n\tvar length=path.getTotalLength();\n\tvar dash_length=length/num_dashs;\n\tpath.style.strokeDasharray=dash_length;\n\tpath.style.strokeDashoffset=-(dash_length*2);\n}}".format(class_name))
+        js_file.write("document.addEventListener('DOMContentLoaded', function() {{\n\tupdate_stroke_dash({},'.{}');\n}});\n\n".format(route_styler.num_dashes,class_name))
+        js_file.write("function update_stroke_dash(num_dashs,class_name) {{\n\tvar path=document.querySelector(class_name);\n\tvar length=path.getTotalLength();\n\tvar dash_length=length/num_dashs;\n\tpath.style.strokeDasharray=dash_length;\n\tpath.style.strokeDashoffset=-(dash_length*2);\n}}".format())
 
         js_file.close()
         return output_name+".js"
@@ -478,12 +477,13 @@ class SVGMaker:
 
         if (len(css_files)+len(js_files)>0):
             html_file.write("\t<head>\n")
+            html_file.write("\t\t<style>::-webkit-scrollbar {display: none;}</style>\n")
             for js_file in js_files: html_file.write('\t\t<script src="{}"></script>\n'.format(js_file))
             for css_file in css_files: html_file.write('\t\t<link rel="stylesheet" type="text/css" href={}>\n'.format(css_file))
             html_file.write("\t</head>\n")
 
         if (len(svg_files)>0):
-            dim=int(99/per_row)
+            dim=int(90/per_row)
             html_file.write("\t<body>\n")
             for svg_file in svg_files:
                 html_file.write("\t\t<div class='container' style='display:inline-flex;width:{}vw;height:{}vw'>\n".format(dim,dim))
@@ -500,29 +500,32 @@ class SVGMaker:
 
         return output_name+".html"
 
-if __name__=="__main__":
+def plot_all(file_path) -> str:
     reader=GPSReader()
-    data,metadata=reader.read("examples\example_run.gpx")
+    data,metadata=reader.read(file_path)
     df=reader.data_to_dataframe(data)
 
     files=[]
 
     styler=RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple")
-    new_files=SVGMaker.generate_route_svg(df,html=True,route_styler=styler)
+    new_files=SVGMaker.generate_route_svg(df,route_styler=styler)
     files.append(new_files)
 
     styler=ElevationStyler(animated=True,animation_length=5,num_dashes=12,plinth_height=30)
-    new_files=SVGMaker.generate_elevation_svg(df,html=True,elevation_styler=styler)
+    new_files=SVGMaker.generate_elevation_svg(df,elevation_styler=styler)
     files.append(new_files)
 
     hist_styler=HistogramStyler(font_anchor="start")
     hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-    new_files=new_files=SVGMaker.generate_histogram(hist_data,hist_styler=hist_styler,html=True,output_name="hist")
+    new_files=new_files=SVGMaker.generate_histogram(hist_data,hist_styler=hist_styler,output_name="hist")
     files.append(new_files)
 
     hist_styler=HistogramStyler(font_anchor="end",animation_length=3)
     hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-    new_files=SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=hist_styler,html=True)
+    new_files=SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=hist_styler)
     files.append(new_files)
 
-    SVGMaker.generate_html_for_many_svg(files,per_row=4)
+    return SVGMaker.generate_html_for_many_svg(files,per_row=2)
+
+if __name__=="__main__":
+    print(plot_all("examples\Liverpool_HM_1_35_01_PB_.gpx"))
