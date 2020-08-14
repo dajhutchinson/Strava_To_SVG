@@ -4,17 +4,19 @@
     More Histograms (generalise)
     Multiple routes
     Colour route depending upon elevation
+    Text positions (On axis, on tip of bar, in bar)
+    Tool tips (title on svg rect)
 """
 from GPSReader import GPSReader
 from GPSEvaluator import GPSEvaluator
 from math import ceil
 import pandas as pd
-
 # define style used for histograms
 class HistogramStyler:
 
-    def __init__(self,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",
-                text=True,font_size=12,font_family="arial",font_anchor="start",
+    def __init__(self,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",space_between_bars=2,
+                text=True,font_size=12,text_gap=None,
+                font_family="arial",font_colour="#000",font_anchor="start",
                 axis=True,axis_x_pos=10,axis_colour="#000",axis_width=1,
                 animation_length=10):
 
@@ -22,10 +24,13 @@ class HistogramStyler:
         self.stroke_width=stroke_width # border
         self.stroke_colour=stroke_colour
         self.rect_colour=rect_colour # fill colour of rect
+        self.space_between_bars=space_between_bars
 
         # text styling
         self.text=text
+        self.text_gap=stroke_width+1 if (text_gap is None) else text_gap # gap between text and end of bar
         self.font_size=font_size
+        self.font_colour=font_colour
         self.font_family=font_family
         self.font_anchor=font_anchor
 
@@ -44,7 +49,7 @@ class HistogramStyler:
 
     # string used for style tag of text svg object
     def text_style_str(self) -> str:
-        return "font-size:{}px;font-family:{}".format(self.font_size,self.font_family)
+        return "font-size:{}px;font-family:{};fill:{}".format(self.font_size,self.font_family,self.font_colour)
 
     # string used for style tag of axis rect
     def axis_style_str(self) -> str:
@@ -106,6 +111,36 @@ class ElevationStyler(RouteStyler):
             start_marker,start_marker_colour,start_marker_width,
             finish_marker,finish_marker_colour,finish_marker_width)
         self.plinth_height=plinth_height
+
+class DefaultStylers:
+    # colour listed light to dark
+    # ffcad4,ffacc5,ffacc5
+    hot_pink_route=RouteStyler(path_colour="#ff87ab",dash_colour="#ffacc5",animated=True,num_dashes=12)
+    hot_pink_elevation=ElevationStyler(path_colour="#ff87ab",dash_colour="#ffacc5",fill_colour="#ffcad4",animated=True,num_dashes=12)
+    hot_pink_hist=HistogramStyler(stroke_colour="#ff87ab",rect_colour="#ffcad4",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",axis_x_pos=0)
+    hot_pink_animated_hist=HistogramStyler(rect_colour="#ff87ab",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",stroke_width=0)
+    hot_pink={"route":hot_pink_route,"elevation":hot_pink_elevation,"hist":hot_pink_hist,"animated_hist":hot_pink_animated_hist}
+
+    # 9db8a1,547358,214025
+    after_eights_route=RouteStyler(path_colour="#214025",dash_colour="#547358",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
+    after_eights_elevation=ElevationStyler(path_colour="#214025",dash_colour="#547358",fill_colour="#9db8a1",animated=True,num_dashes=12)
+    after_eights_hist=HistogramStyler(stroke_colour="#547358",rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",axis_x_pos=0)
+    after_eights_animated_hist=HistogramStyler(rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",stroke_width=0)
+    after_eights={"route":after_eights_route,"elevation":after_eights_elevation,"hist":after_eights_hist,"animated_hist":after_eights_animated_hist}
+
+    # dc2f02,d00000,9d0208
+    fire_route=RouteStyler(path_colour="#dc2f02",dash_colour="#d00000",animated=True,animation_length=1,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
+    fire_elevation=ElevationStyler(path_colour="#dc2f02",dash_colour="#d00000",fill_colour="#9d0208",animated=True,animation_length=1,num_dashes=12)
+    fire_hist=HistogramStyler(stroke_colour="#dc2f02",rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",axis_x_pos=0)
+    fire_animated_hist=HistogramStyler(rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",stroke_width=0)
+    fire={"route":fire_route,"elevation":fire_elevation,"hist":fire_hist,"animated_hist":fire_animated_hist}
+
+    # 02c39a,00a896,028090
+    agua_route=RouteStyler(path_colour="#00a896",dash_colour="#028090",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
+    agua_elevation=ElevationStyler(path_colour="#00a896",dash_colour="#028090",fill_colour="#02c39a",animated=True,num_dashes=12)
+    agua_hist=HistogramStyler(stroke_colour="#00a896",rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",axis_x_pos=0)
+    agua_animated_hist=HistogramStyler(rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",stroke_width=0)
+    agua={"route":agua_route,"elevation":agua_elevation,"hist":agua_hist,"animated_hist":agua_animated_hist}
 
 class SVGMaker:
 
@@ -285,13 +320,15 @@ class SVGMaker:
         if hist_styler is None: hist_styler=HistogramStyler()
 
         # calculate bar heights
-        height=min(int(100/data.size),10)-2
-        y_max=2+(data.size*(2+height))
+        height=min(int(100/data.size),10)-hist_styler.space_between_bars
+        y_max=hist_styler.space_between_bars+(data.size*(hist_styler.space_between_bars+height))
         hist_styler.font_size=height
 
         # calculate bar widths
         min_val=data.min(); max_val=data.max()
-        widths=data.copy().apply(lambda x:int((70*(x))/max_val))
+        max_bar_width=140-hist_styler.axis_x_pos-hist_styler.axis_width
+        if (hist_styler.font_anchor=="start"): max_bar_width-=15
+        widths=data.copy().apply(lambda x:int(max_bar_width*(x/max_val)))
 
         svg_file=open(output_name+".svg","w+")
         svg_file.write('<svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 140 {}" width="100%" height="100%" version="1.1">\n'.format(y_max))
@@ -319,10 +356,10 @@ class SVGMaker:
 
     # add bars to histogram
     def __add_histogram_bars(svg_file,widths:pd.DataFrame,hist_styler:HistogramStyler) -> int:
-        height=min(int(100/widths.shape[0]),10)-2
+        height=min(int(100/widths.shape[0]),10)-hist_styler.space_between_bars
         count=0; x_poss=[]
         for ind,width in widths.iteritems():
-            y=2+count*(2+height)
+            y=hist_styler.space_between_bars+count*(hist_styler.space_between_bars+height)
             svg_file.write('<rect class="hist_bar" x="{}" y="{}" width="{}" height="{}" '.format(hist_styler.axis_x_pos,y,width,height)) # dimensions
             x_poss.append(hist_styler.axis_x_pos+width+1)
             svg_file.write('style="{}">'.format(hist_styler.rect_style_str())) # styling
@@ -332,11 +369,12 @@ class SVGMaker:
 
     # add labels to histogram bars
     def __add_histogram_text(svg_file,x_poss:[int],labels:[str],hist_styler:HistogramStyler):
-        height=min(int(100/len(x_poss)),10)-2
+        height=min(int(100/len(x_poss)),10)-hist_styler.space_between_bars
         for i in range(len(x_poss)):
             x_pos=x_poss[i]; label=labels[i]
-            y=2+i*(2+height)
+            y=hist_styler.space_between_bars+i*(hist_styler.space_between_bars+height)
             # add text to non-empty bars
+            x_pos=x_pos+hist_styler.text_gap if (hist_styler.font_anchor=="start") else x_pos-hist_styler.text_gap
             if (x_pos!=hist_styler.axis_x_pos): svg_file.write('<text class="hist_text" x="{}" y="{}" dy="{}" text-anchor="{}" style="{}">{}</text>\n'.format(x_pos,y,height-1,hist_styler.font_anchor,hist_styler.text_style_str(),label))
 
     def __add_histogram_axis(svg_file,hist_styler:HistogramStyler,y_max:int):
@@ -372,7 +410,7 @@ class SVGMaker:
             SVGMaker.__add_histogram_text(svg_file,x_poss,labels,hist_styler)
 
         # add axis
-        if (hist_styler.axis): html_file_name=svg_file.write('\t<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="stroke:#000;stroke-width:1"></line>\n'.format(hist_styler.axis_x_pos,hist_styler.axis_x_pos,y_max)) # y axis
+        if (hist_styler.axis): html_file_name=svg_file.write('\t<line class="hist_axis" x1="{}" y1="0" x2="{}" y2="{}" stroke-linecap="square" style="{}"></line>\n'.format(hist_styler.axis_x_pos,hist_styler.axis_x_pos,y_max,hist_styler.axis_style_str())) # y axis
 
         # end file
         svg_file.write("</svg>")
@@ -388,18 +426,18 @@ class SVGMaker:
 
     # add bars for animated histogram (each bar is split up into km intervals)
     def __add_animation_histogram_bars(svg_file,widths_df:pd.DataFrame,hist_styler:HistogramStyler):
-        height=min(int(100/widths_df.shape[0]),10)-2
+        height=min(int(100/widths_df.shape[0]),10)-hist_styler.space_between_bars
 
         x={val:hist_styler.axis_x_pos for val in widths_df.index}
         for col in widths_df.columns:
             column=widths_df[col]
             count=0
             for split,width in column.iteritems():
-                y=2+count*(2+height)
+                y=hist_styler.space_between_bars+count*(hist_styler.space_between_bars+height)
                 if (width!=0):
                     svg_file.write('\t<rect class="animated_hist_bar bar_{}" x="{}" y="{}" width="{}" height="{}" '.format(col,x[split],y,width,height)) # dimensions
                     x[split]+=width
-                    svg_file.write('style="fill:#214025">') # styling
+                    svg_file.write('style="{}">'.format(hist_styler.rect_style_str())) # styling
                     svg_file.write('</rect>\n')
                 count+=1
 
@@ -411,7 +449,6 @@ class SVGMaker:
         frame_length=max(round(hist_styler.animation_length/len(col_labels),1),.1)
         css_file=open(output_name+".css","w+")
         css_file.write(".animated_hist_bar {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\topacity: 0;\n}\n\n")
-        css_file.write(".animated_hist_bar:hover {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\tfill: #547358!important\n}\n\n")
         css_file.write("@keyframes opacity {\n\t0% {opacity: 0}\n\t100% {opacity: 1}\n}\n\n")
 
         count=0
@@ -532,10 +569,15 @@ def plot_all(file_path,to_plot={"route":None,"elevation":None,"histogram":None,"
     return SVGMaker.generate_html_for_many_svg(files,per_row=2)
 
 if __name__=="__main__":
+    stylers=DefaultStylers.agua
     plots={
-        "route":RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple"),
-        "elevation":ElevationStyler(animated=True,animation_length=5,num_dashes=12,plinth_height=30),
-        #"histogram":HistogramStyler(font_anchor="start"),
-        "animated_histogram":HistogramStyler(font_anchor="end",animation_length=3)
+        # "route":RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple"),
+        # "elevation":ElevationStyler(animated=True,animation_length=5,num_dashes=12,plinth_height=30),
+        # "histogram":HistogramStyler(font_anchor="end",space_between_bars=0,font_colour="#fff"),
+        # "animated_histogram":HistogramStyler(font_anchor="end",animation_length=3,space_between_bars=0,text_gap=0)
+        "route":stylers["route"],
+        "elevation":stylers["elevation"],
+        "histogram":stylers["hist"],
+        "animated_histogram":stylers["animated_hist"]
     }
     print(plot_all("examples\Liverpool_HM_1_35_01_PB_.gpx",to_plot=plots))
