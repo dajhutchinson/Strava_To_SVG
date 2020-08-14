@@ -13,4 +13,4 @@ Plot of the route using GPS data.
 
 ## Elevation
 Plot of the elevation along the route using GPS data.
-![Elevation](elevationgif)
+![Elevation](elevation.gif)
