@@ -1,10 +1,9 @@
 """
     TODO
-    Premade colour schemes
     More Histograms (generalise)
     Multiple routes
     Colour route depending upon elevation
-    Text positions (On axis, on tip of bar, in bar)
+    Text position options (On axis, on tip of bar, in bar)
     Tool tips (title on svg rect)
 """
 from GPSReader import GPSReader
@@ -118,28 +117,28 @@ class DefaultStylers:
     hot_pink_route=RouteStyler(path_colour="#ff87ab",dash_colour="#ffacc5",animated=True,num_dashes=12)
     hot_pink_elevation=ElevationStyler(path_colour="#ff87ab",dash_colour="#ffacc5",fill_colour="#ffcad4",animated=True,num_dashes=12)
     hot_pink_hist=HistogramStyler(stroke_colour="#ff87ab",rect_colour="#ffcad4",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",axis_x_pos=0)
-    hot_pink_animated_hist=HistogramStyler(rect_colour="#ff87ab",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",stroke_width=0)
+    hot_pink_animated_hist=HistogramStyler(rect_colour="#ff87ab",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",stroke_width=0,text_gap=0)
     hot_pink={"route":hot_pink_route,"elevation":hot_pink_elevation,"hist":hot_pink_hist,"animated_hist":hot_pink_animated_hist}
 
     # 9db8a1,547358,214025
     after_eights_route=RouteStyler(path_colour="#214025",dash_colour="#547358",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
     after_eights_elevation=ElevationStyler(path_colour="#214025",dash_colour="#547358",fill_colour="#9db8a1",animated=True,num_dashes=12)
     after_eights_hist=HistogramStyler(stroke_colour="#547358",rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",axis_x_pos=0)
-    after_eights_animated_hist=HistogramStyler(rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",stroke_width=0)
+    after_eights_animated_hist=HistogramStyler(rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",stroke_width=0,text_gap=0)
     after_eights={"route":after_eights_route,"elevation":after_eights_elevation,"hist":after_eights_hist,"animated_hist":after_eights_animated_hist}
 
     # dc2f02,d00000,9d0208
     fire_route=RouteStyler(path_colour="#dc2f02",dash_colour="#d00000",animated=True,animation_length=1,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
     fire_elevation=ElevationStyler(path_colour="#dc2f02",dash_colour="#d00000",fill_colour="#9d0208",animated=True,animation_length=1,num_dashes=12)
     fire_hist=HistogramStyler(stroke_colour="#dc2f02",rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",axis_x_pos=0)
-    fire_animated_hist=HistogramStyler(rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",stroke_width=0)
+    fire_animated_hist=HistogramStyler(rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",stroke_width=0,text_gap=0)
     fire={"route":fire_route,"elevation":fire_elevation,"hist":fire_hist,"animated_hist":fire_animated_hist}
 
     # 02c39a,00a896,028090
     agua_route=RouteStyler(path_colour="#00a896",dash_colour="#028090",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
     agua_elevation=ElevationStyler(path_colour="#00a896",dash_colour="#028090",fill_colour="#02c39a",animated=True,num_dashes=12)
     agua_hist=HistogramStyler(stroke_colour="#00a896",rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",axis_x_pos=0)
-    agua_animated_hist=HistogramStyler(rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",stroke_width=0)
+    agua_animated_hist=HistogramStyler(rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",stroke_width=0,text_gap=0)
     agua={"route":agua_route,"elevation":agua_elevation,"hist":agua_hist,"animated_hist":agua_animated_hist}
 
 class SVGMaker:
@@ -569,7 +568,7 @@ def plot_all(file_path,to_plot={"route":None,"elevation":None,"histogram":None,"
     return SVGMaker.generate_html_for_many_svg(files,per_row=2)
 
 if __name__=="__main__":
-    stylers=DefaultStylers.agua
+    stylers=DefaultStylers.after_eights
     plots={
         # "route":RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple"),
         # "elevation":ElevationStyler(animated=True,animation_length=5,num_dashes=12,plinth_height=30),
