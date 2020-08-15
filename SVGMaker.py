@@ -13,11 +13,20 @@ import pandas as pd
 # define style used for histograms
 class HistogramStyler:
 
-    def __init__(self,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",space_between_bars=2,
+    """
+    OPTIONS for animation_function:
+        SVGMaker.histogram_animation_bounce
+            An infinite animation where the blocks transition in and out
+            var=pause_pct,reset_pct
+
+        SVGMaker.histogram_animation_freeze
+            Blocks transition in then hold
+    """
+    def __init__(self,animation_function,rect_colour="#214025",stroke_width=1,stroke_colour="#547358",space_between_bars=2,
                 text=True,font_size=12,text_gap=None,
                 font_family="arial",font_colour="#000",font_anchor="start",
                 axis=True,axis_x_pos=10,axis_colour="#000",axis_width=1,
-                animation_length=10):
+                animation_length=10,pause_pct=20,reset_pct=10):
 
         # rect
         self.stroke_width=stroke_width # border
@@ -41,6 +50,12 @@ class HistogramStyler:
 
         # animation
         self.animation_length=animation_length
+        self.animation_function=animation_function
+
+        # parameters for __histogram_animation_bounce
+        self.pause_pct=pause_pct
+        self.reset_pct=reset_pct
+
 
     # string used for style tag of rect svg object
     def rect_style_str(self) -> str:
@@ -110,36 +125,6 @@ class ElevationStyler(RouteStyler):
             start_marker,start_marker_colour,start_marker_width,
             finish_marker,finish_marker_colour,finish_marker_width)
         self.plinth_height=plinth_height
-
-class DefaultStylers:
-    # colour listed light to dark
-    # ffcad4,ffacc5,ffacc5
-    hot_pink_route=RouteStyler(path_colour="#ff87ab",dash_colour="#ffacc5",animated=True,num_dashes=12)
-    hot_pink_elevation=ElevationStyler(path_colour="#ff87ab",dash_colour="#ffacc5",fill_colour="#ffcad4",animated=True,num_dashes=12)
-    hot_pink_hist=HistogramStyler(stroke_colour="#ff87ab",rect_colour="#ffcad4",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",axis_x_pos=0)
-    hot_pink_animated_hist=HistogramStyler(rect_colour="#ff87ab",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",stroke_width=0,text_gap=0)
-    hot_pink={"route":hot_pink_route,"elevation":hot_pink_elevation,"hist":hot_pink_hist,"animated_hist":hot_pink_animated_hist}
-
-    # 9db8a1,547358,214025
-    after_eights_route=RouteStyler(path_colour="#214025",dash_colour="#547358",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
-    after_eights_elevation=ElevationStyler(path_colour="#214025",dash_colour="#547358",fill_colour="#9db8a1",animated=True,num_dashes=12)
-    after_eights_hist=HistogramStyler(stroke_colour="#547358",rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",axis_x_pos=0)
-    after_eights_animated_hist=HistogramStyler(rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",stroke_width=0,text_gap=0)
-    after_eights={"route":after_eights_route,"elevation":after_eights_elevation,"hist":after_eights_hist,"animated_hist":after_eights_animated_hist}
-
-    # dc2f02,d00000,9d0208
-    fire_route=RouteStyler(path_colour="#dc2f02",dash_colour="#d00000",animated=True,animation_length=1,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
-    fire_elevation=ElevationStyler(path_colour="#dc2f02",dash_colour="#d00000",fill_colour="#9d0208",animated=True,animation_length=1,num_dashes=12)
-    fire_hist=HistogramStyler(stroke_colour="#dc2f02",rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",axis_x_pos=0)
-    fire_animated_hist=HistogramStyler(rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",stroke_width=0,text_gap=0)
-    fire={"route":fire_route,"elevation":fire_elevation,"hist":fire_hist,"animated_hist":fire_animated_hist}
-
-    # 02c39a,00a896,028090
-    agua_route=RouteStyler(path_colour="#00a896",dash_colour="#028090",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
-    agua_elevation=ElevationStyler(path_colour="#00a896",dash_colour="#028090",fill_colour="#02c39a",animated=True,num_dashes=12)
-    agua_hist=HistogramStyler(stroke_colour="#00a896",rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",axis_x_pos=0)
-    agua_animated_hist=HistogramStyler(rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",stroke_width=0,text_gap=0)
-    agua={"route":agua_route,"elevation":agua_elevation,"hist":agua_hist,"animated_hist":agua_animated_hist}
 
 class SVGMaker:
 
@@ -415,10 +400,11 @@ class SVGMaker:
         svg_file.write("</svg>")
         svg_file.close()
 
-        css_file_name=SVGMaker.__generate_css_for_animated_histogram(widths_df.columns,hist_styler=hist_styler,output_name=output_name) # add animation
+        # css_file_name=SVGMaker.__generate_css_for_animated_histogram(widths_df.columns,hist_styler=hist_styler,output_name=output_name) # add animation
+        css_file_name=hist_styler.animation_function(widths_df.columns,hist_styler=hist_styler,output_name=output_name) # add animation
         files["css"]=css_file_name
         if (html):
-            SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,output_name=output_name) # html for previewing
+            html_file_name=SVGMaker.generate_html_for_svg(svg_file_name=output_name+".svg",css_file_name=css_file_name,output_name=output_name) # html for previewing
             files["html"]=html_file_name
 
         return files
@@ -444,21 +430,43 @@ class SVGMaker:
     ANIMATION
     """
     # creates csv file which adds animation to histogram
-    def __generate_css_for_animated_histogram(col_labels,hist_styler,output_name="test/animated_hist"):
+    def histogram_animation_freeze(col_labels,hist_styler,output_name="test/animated_hist") -> str:
         frame_length=max(round(hist_styler.animation_length/len(col_labels),1),.1)
         css_file=open(output_name+".css","w+")
         css_file.write(".animated_hist_bar {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\topacity: 0;\n}\n\n")
         css_file.write("@keyframes opacity {\n\t0% {opacity: 0}\n\t100% {opacity: 1}\n}\n\n")
 
-        count=0
-        for col in col_labels:
+        for count,col in enumerate(col_labels):
             css_file.write(".bar_{} {{\n\tanimation: linear {}s opacity forwards;\n".format(col,frame_length))
             if (count!=0): css_file.write("\tanimation-delay: {}s\n".format(count*frame_length))
             css_file.write("}\n\n")
-            count+=1
 
         css_file.close()
         return output_name+".css"
+
+    def histogram_animation_bounce(col_labels,hist_styler,output_name="test/animated_hist.css") -> str:
+        pause_pct=20 # percentage of animation spent frozen on complete
+        reset_pct=10 # percentage of animation spend return to origin pos
+        frame_pct=int((100-hist_styler.pause_pct-hist_styler.reset_pct)/len(col_labels))
+
+        css_file=open(output_name+".css","w+")
+        css_file.write(".animated_hist_bar {\n\ttransition-timing-function: ease;\n\ttransition-duration: .4s;\n\topacity: 0;\n}\n\n")
+
+        for count,col in enumerate(col_labels):
+            start_transition=count*frame_pct
+            end_transition=(count+1)*frame_pct
+            css_file.write(".bar_{} {{\n\tanimation: linear {}s opacity_{} infinite;}}\n".format(col,hist_styler.animation_length,col))
+            # individual animations
+            css_file.write("@keyframes opacity_{} {{\n\t0% {{opacity: 0;}}\n".format(col))
+            if (start_transition!=0): css_file.write("\t{}% {{opacity: 0;}}\n".format(start_transition))
+            if (end_transition!=100-hist_styler.pause_pct-hist_styler.reset_pct): css_file.write("\t{}% {{opacity: 1;}}\n".format(end_transition))
+            css_file.write("\t{}% {{opacity: 1;}}\n".format(100-hist_styler.reset_pct-hist_styler.pause_pct))
+            css_file.write("\t{}% {{opacity: 1;}}\n".format(100-hist_styler.reset_pct))
+            css_file.write("\t100% {opacity: 0;}\n}\n\n")
+
+        return output_name+".css"
+
+    def hello(greet): print(greet)
 
     # creates csv file which adds css to make a dash follow the path in an infintie loop
     def __generate_css_for_animated_route(class_name,route_styler=None,output_name="test/animated_route"):
@@ -487,12 +495,13 @@ class SVGMaker:
     HELPERS
     """
     # generates html file for visulasing svg
-    def generate_html_for_svg(svg_file_name,css_file_name=None,js_file_name=None,output_name="test/example") -> str:
+    def generate_html_for_svg(svg_file_name,css_file_name=None,js_file_name=None,output_name="test/example",path_to_remove="test/") -> str:
         html_file=open(output_name+".html","w+")
         html_file.write('<html>\n\t<head>\n')
-        if css_file_name is not None:
-            html_file.write('\t\t<link rel="stylesheet" type="text/css" href={}>\n'.format(css_file_name))
-            html_file.write('\t\t<script src="{}"></script>\n'.format(js_file_name))
+
+        if css_file_name is not None: html_file.write('\t\t<link rel="stylesheet" type="text/css" href={}>\n'.format(css_file_name.replace(path_to_remove,"")))
+        if js_file_name is not None: html_file.write('\t\t<script src="{}"></script>\n'.format(js_file_name.replace(path_to_remove,"")))
+
         html_file.write('\t</head>\n\t<body>\n')
 
         with open(svg_file_name,"r") as svg_file:
@@ -535,6 +544,37 @@ class SVGMaker:
         html_file.write("</html>")
 
         return output_name+".html"
+
+class DefaultStylers:
+    # colour listed light to dark
+    # ffcad4,ffacc5,ffacc5
+    hot_pink_route=RouteStyler(path_colour="#ff87ab",dash_colour="#ffacc5",animated=True,num_dashes=12)
+    hot_pink_elevation=ElevationStyler(path_colour="#ff87ab",dash_colour="#ffacc5",fill_colour="#ffcad4",animated=True,num_dashes=12)
+    hot_pink_hist=HistogramStyler(None,stroke_colour="#ff87ab",rect_colour="#ffcad4",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",axis_x_pos=0)
+    hot_pink_animated_hist=HistogramStyler(SVGMaker.histogram_animation_bounce,rect_colour="#ff87ab",font_anchor="end",space_between_bars=0,font_colour="#ff87ab",stroke_width=0,text_gap=0)
+    hot_pink={"route":hot_pink_route,"elevation":hot_pink_elevation,"hist":hot_pink_hist,"animated_hist":hot_pink_animated_hist}
+
+    # 9db8a1,547358,214025
+    after_eights_route=RouteStyler(path_colour="#214025",dash_colour="#547358",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
+    after_eights_elevation=ElevationStyler(path_colour="#214025",dash_colour="#547358",fill_colour="#9db8a1",animated=True,num_dashes=12)
+    after_eights_hist=HistogramStyler(None,stroke_colour="#547358",rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",axis_x_pos=0)
+    after_eights_animated_hist=HistogramStyler(SVGMaker.histogram_animation_bounce,rect_colour="#214025",font_anchor="end",space_between_bars=0,font_colour="#9db8a1",stroke_width=0,text_gap=0)
+    after_eights={"route":after_eights_route,"elevation":after_eights_elevation,"hist":after_eights_hist,"animated_hist":after_eights_animated_hist}
+
+    # dc2f02,d00000,9d0208
+    fire_route=RouteStyler(path_colour="#dc2f02",dash_colour="#d00000",animated=True,animation_length=1,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
+    fire_elevation=ElevationStyler(path_colour="#dc2f02",dash_colour="#d00000",fill_colour="#9d0208",animated=True,animation_length=1,num_dashes=12)
+    fire_hist=HistogramStyler(None,stroke_colour="#dc2f02",rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",axis_x_pos=0)
+    fire_animated_hist=HistogramStyler(SVGMaker.histogram_animation_bounce,rect_colour="#9d0208",font_anchor="end",space_between_bars=0,font_colour="#d00000",stroke_width=0,text_gap=0)
+    fire={"route":fire_route,"elevation":fire_elevation,"hist":fire_hist,"animated_hist":fire_animated_hist}
+
+    # 02c39a,00a896,028090
+    agua_route=RouteStyler(path_colour="#00a896",dash_colour="#028090",animated=True,num_dashes=12,start_marker=True,finish_marker=True,split_dist=1000,split_marker_colour="#000")
+    agua_elevation=ElevationStyler(path_colour="#00a896",dash_colour="#028090",fill_colour="#02c39a",animated=True,num_dashes=12)
+    agua_hist=HistogramStyler(None,stroke_colour="#00a896",rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",axis_x_pos=0)
+    agua_animated_hist=HistogramStyler(SVGMaker.histogram_animation_bounce,rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",stroke_width=0,text_gap=0)
+    agua={"route":agua_route,"elevation":agua_elevation,"hist":agua_hist,"animated_hist":agua_animated_hist}
+
 
 def plot_all(file_path,to_plot={"route":None,"elevation":None,"histogram":None,"animated_histogram":None}) -> str:
 
@@ -579,4 +619,4 @@ if __name__=="__main__":
         "histogram":stylers["hist"],
         "animated_histogram":stylers["animated_hist"]
     }
-    print(plot_all("examples\Liverpool_HM_1_35_01_PB_.gpx",to_plot=plots))
+    print(plot_all("examples/example_ride.tcx",to_plot=plots))
