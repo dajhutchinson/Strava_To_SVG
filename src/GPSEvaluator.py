@@ -229,7 +229,7 @@ class GPSEvaluator:
 
 if __name__=="__main__":
     reader=GPSReader()
-    data,metadata=reader.read("examples\Run_from_Exam.tcx")
+    data,metadata=reader.read("..\examples\Run_from_Exam.tcx")
     df=reader.data_to_dataframe(data)
 
     split_points=GPSEvaluator.split_markers(df,split_dist=1609)

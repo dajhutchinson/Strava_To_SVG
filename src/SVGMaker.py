@@ -619,4 +619,4 @@ if __name__=="__main__":
         "histogram":stylers["hist"],
         "animated_histogram":stylers["animated_hist"]
     }
-    print(plot_all("examples/example_ride.tcx",to_plot=plots))
+    print(plot_all("../examples/example_ride.tcx",to_plot=plots))

@@ -121,6 +121,6 @@ class GPSReader:
         return pd.DataFrame(data)
 
 # reader=GPSReader()
-# data,metadata=reader.read("examples\example_ride.tcx")
+# data,metadata=reader.read("../examples/example_ride.tcx")
 # df=reader.data_to_dataframe(data).head()
 # print(df.dtypes)

@@ -1,3 +1,11 @@
+*.svg
+*.gpx
+*.tcx
+test.py
+*.html
+*.css
+*.js
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
