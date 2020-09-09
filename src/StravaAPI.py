@@ -1,4 +1,5 @@
 import requests
+import pandas as pd
 
 def get_full_activity_list(access_token,per_page=50) -> [dict]:
     url='https://www.strava.com/api/v3/athlete/activities'
@@ -14,9 +15,20 @@ def get_full_activity_list(access_token,per_page=50) -> [dict]:
 
     return activities
 
+# extract the fundamental details from the full set of details returned from API request
+def activity_fundamentals(activity_details) -> dict:
+    fundamentals=["id","start_date_local","name","distance","elapsed_time","moving_time","total_elevation_gain","type",]
+    fundamental_details={f:activity_details[f] for f in fundamentals}
+    return fundamental_details
+
 # access token is temporary (6 hours) so follow instructions for acquiring
 ACCESS_TOKEN=""
+
 activities=get_full_activity_list(ACCESS_TOKEN,per_page=100)
-print(len(activities))
-for key,value in activities[0].items():
-    print(key,value)
+activity_fundamentals=[activity_fundamentals(row) for row in activities]
+
+activities_df=pd.DataFrame(activities)
+activity_fundamentals_df=pd.DataFrame(activity_fundamentals)
+
+activities_df.to_csv("activities.csv")
+activity_fundamentals_df.to_csv("activity_fundamentals.csv")
