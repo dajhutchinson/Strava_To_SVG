@@ -582,7 +582,7 @@ class DefaultStylers:
     simple_elevation=ElevationStyler(plinth_height=None,fill_colour=None,animated=False)
 
 # to_plot pass a tuple containing (styler,output_name)
-def plot_all(file_path,html_output_name="test/many_examples",to_plot={"route":(None,"test/route"),"elevation":(None,"test/elevation"),"histogram":(None,"test/hist"),"animated_histogram":(None,"test/animated_hist")},path_to_remove="test/") -> str:
+def plot_all(file_path,plot_html=True,html_output_name="test/many_examples",to_plot={"route":(None,"test/route"),"elevation":(None,"test/elevation"),"histogram":(None,"test/hist"),"animated_histogram":(None,"test/animated_hist")},path_to_remove="test/") -> str:
 
     reader=GPSReader()
     data,metadata=reader.read(file_path)
@@ -615,7 +615,10 @@ def plot_all(file_path,html_output_name="test/many_examples",to_plot={"route":(N
         new_files=SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=styler,output_name=plot_details[1])
         files.append(new_files)
 
-    return SVGMaker.generate_html_for_many_svg(files,per_row=2,output_name=html_output_name,path_to_remove=path_to_remove)
+    if plot_html:
+        return SVGMaker.generate_html_for_many_svg(files,per_row=2,output_name=html_output_name,path_to_remove=path_to_remove)
+    else:
+        return files
 
 if __name__=="__main__":
     stylers=DefaultStylers.after_eights

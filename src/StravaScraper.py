@@ -39,12 +39,12 @@ def download_activity_file(session,activity_id,output_name="downloaded_file",out
     open("{}{}.{}".format(output_path,output_name,file_type),"wb").write(response.content)
     return response.status_code
 
+if __name__=="__main__":
+    email=""
+    password=""
 
-email=""
-password=""
-
-session=requests.Session()
-login_data=generate_login_data(session,email,password)
-login(session,login_data)
-print("Logged In")
-# download_activity_file(session,"4030142544")
+    session=requests.Session()
+    login_data=generate_login_data(session,email,password)
+    login(session,login_data)
+    print("Logged In")
+    # download_activity_file(session,"4030142544")
