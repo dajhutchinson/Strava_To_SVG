@@ -6,8 +6,8 @@
     Text position options (On axis, on tip of bar, in bar)
     Tool tips (title on svg rect)
 """
-from GPSReader import GPSReader
-from GPSEvaluator import GPSEvaluator
+from src.GPSReader import GPSReader
+from src.GPSEvaluator import GPSEvaluator
 from math import ceil
 import pandas as pd
 # define style used for histograms
@@ -124,7 +124,7 @@ class ElevationStyler(RouteStyler):
             split_dist,split_marker_colour,split_marker_width,
             start_marker,start_marker_colour,start_marker_width,
             finish_marker,finish_marker_colour,finish_marker_width)
-        self.plinth_height=plinth_height
+        self.plinth_height=plinth_height # set to None for no plinth
 
 class SVGMaker:
 
@@ -147,6 +147,7 @@ class SVGMaker:
     """
     PLOTS
     """
+
     """ROUTE"""
     # generate a path of the route taken
     def generate_route_svg(df,output_name="test/route",route_styler=None,html=False) -> dict:
@@ -290,10 +291,13 @@ class SVGMaker:
         elevation_df["point_str"]=elevation_df.apply(lambda row:"{},{}".format(str(int(row["scaled_distance"])),str(int(row["scaled_altitude"]))),axis=1)
 
         # content
-        plinth_height=max(0,min(30,elevation_styler.plinth_height)) # min alt above sea or defined height
-        bottom_of_path=int(min(1000-elevation_styler.path_width,elevation_df["scaled_altitude"].max()+plinth_height))
         point_str=" ".join(elevation_df["point_str"].tolist())
-        point_str="{},{} ".format(elevation_df["scaled_distance"].min(),bottom_of_path)+point_str+" {},{}".format(elevation_df["scaled_distance"].max(),bottom_of_path)+" {},{} ".format(elevation_df["scaled_distance"].min()-elevation_styler.path_width/2,bottom_of_path)
+        if elevation_styler.plinth_height is not None:
+            plinth_height=max(0,min(30,elevation_styler.plinth_height)) # min alt above sea or defined height
+            bottom_of_path=int(min(1000-elevation_styler.path_width,elevation_df["scaled_altitude"].max()+plinth_height))
+            point_str="{},{} ".format(elevation_df["scaled_distance"].min(),bottom_of_path)+point_str+" {},{}".format(elevation_df["scaled_distance"].max(),bottom_of_path)+" {},{} ".format(elevation_df["scaled_distance"].min()-elevation_styler.path_width/2,bottom_of_path)
+        else:
+            bottom_of_path=int(min(1000-elevation_styler.path_width,elevation_df["scaled_altitude"].max()))
 
         return point_str, bottom_of_path
 
@@ -575,8 +579,10 @@ class DefaultStylers:
     agua_animated_hist=HistogramStyler(SVGMaker.histogram_animation_bounce,rect_colour="#028090",font_anchor="end",space_between_bars=0,font_colour="#00a896",stroke_width=0,text_gap=0)
     agua={"route":agua_route,"elevation":agua_elevation,"hist":agua_hist,"animated_hist":agua_animated_hist}
 
+    simple_elevation=ElevationStyler(plinth_height=None,fill_colour=None,animated=False)
 
-def plot_all(file_path,to_plot={"route":None,"elevation":None,"histogram":None,"animated_histogram":None}) -> str:
+# to_plot pass a tuple containing (styler,output_name)
+def plot_all(file_path,html_output_name="test/many_examples",to_plot={"route":(None,"test/route"),"elevation":(None,"test/elevation"),"histogram":(None,"test/hist"),"animated_histogram":(None,"test/animated_hist")},path_to_remove="test/") -> str:
 
     reader=GPSReader()
     data,metadata=reader.read(file_path)
@@ -584,39 +590,39 @@ def plot_all(file_path,to_plot={"route":None,"elevation":None,"histogram":None,"
 
     files=[]
     if "route" in to_plot:
-        styler=RouteStyler() if (to_plot["route"] is None) else to_plot["route"]
-        new_files=SVGMaker.generate_route_svg(df,route_styler=styler)
+        plot_details=to_plot["route"]
+        styler=RouteStyler() if (plot_details[0] is None) else plot_details[0]
+        new_files=SVGMaker.generate_route_svg(df,route_styler=styler,output_name=plot_details[1])
         files.append(new_files)
 
     if "elevation" in to_plot:
-        styler=ElevationStyler() if (to_plot["elevation"] is None) else to_plot["elevation"]
-        new_files=SVGMaker.generate_elevation_svg(df,elevation_styler=styler)
+        plot_details=to_plot["elevation"]
+        styler=ElevationStyler() if (plot_details[0] is None) else plot_details[0]
+        new_files=SVGMaker.generate_elevation_svg(df,elevation_styler=styler,output_name=plot_details[1])
         files.append(new_files)
 
     if "histogram" in to_plot:
-        styler=HistogramStyler() if (to_plot["histogram"] is None) else to_plot["histogram"]
+        plot_details=to_plot["histogram"]
+        styler=HistogramStyler() if (plot_details[0] is None) else plot_details[0]
         hist_data=GPSEvaluator.split_histogram_data(df,clean=True)
-        new_files=new_files=SVGMaker.generate_histogram(hist_data,hist_styler=styler,output_name="test/hist")
+        new_files=new_files=SVGMaker.generate_histogram(hist_data,hist_styler=styler,output_name=plot_details[1])
         files.append(new_files)
 
     if "animated_histogram" in to_plot:
-        styler=HistogramStyler() if (to_plot["animated_histogram"] is None) else to_plot["animated_histogram"]
+        plot_details=to_plot["animated_histogram"]
+        styler=HistogramStyler() if (plot_details[0] is None) else plot_details[0]
         hist_data_per_km=GPSEvaluator.split_histogram_data_per_km(df,clean=True)
-        new_files=SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=styler)
+        new_files=SVGMaker.generate_animated_histogram(hist_data_per_km,hist_styler=styler,output_name=plot_details[1])
         files.append(new_files)
 
-    return SVGMaker.generate_html_for_many_svg(files,per_row=2)
+    return SVGMaker.generate_html_for_many_svg(files,per_row=2,output_name=html_output_name,path_to_remove=path_to_remove)
 
 if __name__=="__main__":
     stylers=DefaultStylers.after_eights
     plots={
-        # "route":RouteStyler(animated=True,animation_length=5,num_dashes=12,split_dist=1000,start_marker=True,finish_marker=True,split_marker_colour="purple"),
-        # "elevation":ElevationStyler(animated=True,animation_length=5,num_dashes=12,plinth_height=30),
-        # "histogram":HistogramStyler(font_anchor="end",space_between_bars=0,font_colour="#fff"),
-        # "animated_histogram":HistogramStyler(font_anchor="end",animation_length=3,space_between_bars=0,text_gap=0)
-        "route":stylers["route"],
-        "elevation":stylers["elevation"],
-        "histogram":stylers["hist"],
-        "animated_histogram":stylers["animated_hist"]
+        "route":(stylers["route"],"test/route"),
+        "elevation":(stylers["elevation"],"test/elevation"),
+        "histogram":(stylers["hist"],"test/hist"),
+        "animated_histogram":(stylers["animated_hist"],"test/animated_hist")
     }
-    print(plot_all("../examples/example_ride.tcx",to_plot=plots))
+    print(plot_all("../examples/example_ride.tcx",html_output_name="test/plotted",to_plot=plots,path_to_remove="test/"))

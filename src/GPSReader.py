@@ -120,7 +120,8 @@ class GPSReader:
     def data_to_dataframe(self,data):
         return pd.DataFrame(data)
 
-# reader=GPSReader()
-# data,metadata=reader.read("../+examples/example_ride.tcx")
-# df=reader.data_to_dataframe(data).head()
-# print(df.dtypes)
+if __name__=="__main__":
+    reader=GPSReader()
+    data,metadata=reader.read("../examples/example_ride.tcx")
+    df=reader.data_to_dataframe(data).head()
+    print(df.dtypes)
