@@ -13,13 +13,33 @@ class GPSEvaluator:
     """
     HELPERS
     """
-    # returns distance covered between pair of (lat,lon) points
-    # p=(lat,lon)
     def __distance_lat_lon(p1,p2) -> float:
+        """
+        SUMMARY
+        returns the euclidean (2D) distance in metres between two lat-lon co-ordinates
+
+        PARAMETERS
+        p1 ((float,float)): position one (lat,lon)
+        p2 ((float,float)): position two (lat,lon)
+
+        RETURNS
+        float: distance in metres between points
+        """
         return geodesic(p1,p2).meters
 
-    # returns time as number of seconds from start
     def time_to_seconds(df:pd.DataFrame) -> pd.Series:
+        """
+        SUMMARY
+        Returns the "time" column as the number of seconds since the first time.
+        Assumes that rows are in chronological order.
+
+        PARAMETERS
+        df (pandas.DataFrame): dataframe of data produced by GPSReader.read()
+                               requires "time" column
+
+        RETURNS
+	    pandas.Series: seconds since first time in column
+        """
         if "time" in df:
             times=df["time"]
             start_time=times[0]
@@ -27,25 +47,49 @@ class GPSEvaluator:
         else: # not enough data
             return None
 
-
     """
     EVALUATE DATA
     """
-    # return pd.Series of distance between consequtive lat,lon points
+
     def distance(df:pd.DataFrame) -> pd.Series:
+        """
+        SUMMARY
+        Produces a series of the euclidean distance between lat-lon co-ordinates.
+        Assumes rows are in chronological order
+
+        PARAMETERS
+        df (pandas.DataFrame): dataframe of data produced by GPSReader.read().
+                               requires "position_lat" & "position_lon" columns
+
+        RETURNS
+	    pandas.Series: distance in metres between consecutive co-ordinates
+        """
+
         if ("position_lat" in df.columns) and ("position_lon" in df.columns):
             lat_lon=df[["position_lat","position_lon"]].copy()
-            prev_lat_lon=pd.concat([lat_lon.head(1).copy(),lat_lon.iloc[:-1,:].copy()],ignore_index=True)
-            #print(prev_lat_lon["position_lat"])
+            prev_lat_lon=pd.concat([lat_lon.head(1).copy(),lat_lon.iloc[:-1,:].copy()],ignore_index=True) # associate previous lat-lon reading (first is repeated to ensure same length as readings)
+
             lat_lon["prev_lat"]=prev_lat_lon["position_lat"]
             lat_lon["prev_lon"]=prev_lat_lon["position_lon"]
 
             lat_lon["distance"]=lat_lon.apply(lambda x:GPSEvaluator.__distance_lat_lon((x["position_lat"],x["position_lon"]),(x["prev_lat"],x["prev_lon"])),axis=1)
             return lat_lon["distance"]
-        return None
 
-    # calculate cummulative distance from start to point
+        return None # insufficient data
+
     def cumm_distance(df:pd.DataFrame) -> pd.Series:
+        """
+        SUMMARY
+        returns series with the cummulative distance along path defined by lat-lon coords
+
+        PARAMETERS
+	    df (pandas.DataFrame): dataframe of data produced by GPSReader.read().
+                               requires "distance" column with data from GPSEvaluator.distance()
+                                        OR "position_lat" & "position_lon" columns
+
+        RETURNS
+	    pandas.Series: cummulative distance along path in metres (rounded to 2dp)
+        """
 
         if ("distance" in df.columns): dists=df["distance"]
         elif ("position_lat" in df.columns) and ("position_lon" in df.columns): dists=GPSEvaluator.distance(df)
@@ -53,9 +97,24 @@ class GPSEvaluator:
 
         return dists.cumsum().apply(lambda x:round(x,2))
 
-    # interpolates time between each dist (chops off any overflow)
     def splits(df:pd.DataFrame,split_dist=1000) -> pd.DataFrame:
-        # check data
+        """
+        SUMMARY
+        Calcualtes time taken to complete splits of a defined distance.
+        Interpolation is used when measurements don't end exactly on a split.
+        Any excess is ignored (ie if distance if 8.9km and readings are made for 1km, .9km will be lost)
+
+        PARAMETERS
+	    df (pandas.DataFrame): dataframe of data produced by GPSReader.read().
+                               requires "cumm_distance" ("distance" OR ("position_lat" AND "position_lon") are sufficient)
+                               AND "seconds" ("time" is sufficient)
+        split_dist (int): length of split in metres
+                          (default=1000)
+
+        RETURNS
+	    pandas.DataFrame: "dist" (cumm distance in metres at end of split), "time" (time in seconds for split)
+        """
+        # check sufficient data exists
         if "cumm_distance" not in df.columns:
             cumm_dists=GPSEvaluator.cumm_distance(df)
             if cumm_dists is None: return None # not enough data
@@ -82,8 +141,21 @@ class GPSEvaluator:
 
         return splits
 
-    # identify gps co-ords of interval markers
     def split_markers(df:pd.DataFrame,split_dist=1000) -> pd.DataFrame:
+        """
+        SUMMARY
+        Returns the GPS co-ordinates of end point of splits
+
+        PARAMETERS
+	    df (pandas.DataFrame): dataframe of data produced by GPSReader.read().
+                               requires "position_lat" & "position_lon"
+                               ("distance" or "cumm_distance" are ideal but not required)
+        split_dist (int): length of split in metres
+                          (default=1000)
+
+        RETURNS
+	    pandas.DataFrame: "dist", "position_lat","position_lon" of split endpoints
+        """
         if "cumm_distance" not in df.columns:
             cumm_dists=GPSEvaluator.cumm_distance(df)
             if cumm_dists is None: return None # not enough data
@@ -100,16 +172,44 @@ class GPSEvaluator:
         return pd.DataFrame(split_coords)
 
     # identify coords of important locations (start or end)
-    def important_points(df,name):
+    def important_points(df:pd.DataFrame,name:str) -> df.Series:
+        """
+        SUMMARY
+        Identifies the lat-lon position of special points.
+        Assumes rows are in chronological order
+
+        PARAMETERS
+	    df (pandas.DataFrame): dataframe of data produced by GPSReader.read()
+                               requires "position_lat" & "position_lon" columns
+        name (str): One of ["start","finish"]
+
+        RETURNS
+	    pandas.Series: "position_lat" and "position_lon" of position
+        """
         if name=="start":  return df.iloc[0][["position_lat"]],df.iloc[0][["position_lon"]]
         if name=="finish": return df.iloc[-1][["position_lat"]],df.iloc[-1][["position_lon"]]
         return None
 
     """HISTOGRAM"""
-    # calculate histogram of splits (bin_width:seconds,sampling_dist:metres)
-    # clean=runs clean_histogram_data with default values
+
     def split_histogram_data(df:pd.DataFrame,bin_width=10,sampling_dist=100,clean=False) -> pd.Series:
-        # bins=pd.DataFrame(columns=["lower","upper","count"])
+        """
+        SUMMARY
+        Calculate time spent at given splits(speed).
+        This data is used to generate a histogram in SVGMaker.generate_histogram
+
+        PARAMETERS
+	    df (pandas.DataFrame): dataframe of data produced by GPSReader.read().
+                               requires "cumm_distance" ("distance" OR ("position_lat" AND "position_lon") are sufficient)
+                               AND "seconds" ("time" is sufficient)
+        bin_width (int): width of bin in seconds for seconds per km split
+        sampling_dist (int): how often in metres to sample from the data set (default=100)
+        clean (bool): remove extreme data
+
+        RETURNS
+	    pd.Series: count of samples falling in each bin
+                   index is the split in seconds per km
+        """
 
         split_data=GPSEvaluator.splits(df,split_dist=sampling_dist)["time"] # generalise data
         split_data=split_data.apply(lambda x:x*(1000/sampling_dist)).astype(int) # extrapolate km splits
@@ -120,11 +220,21 @@ class GPSEvaluator:
             bins[lower_bound]+=1
 
         bins_ser=pd.Series(bins)
-        if clean: return GPSEvaluator.__clean_histogram_data(bins_ser)
+        if clean: return GPSEvaluator.__clean_histogram_data(bins_ser) # remove extreme data
         return bins_ser
 
-    # keeps densiest cluster whichc contains min_kept% of all values
     def __clean_histogram_data(splits:pd.Series,min_kept=.9) -> pd.Series:
+        """
+        SUMMARY
+        keeps densiest cluster which contains min_kept% of all values
+
+        PARAMETERS
+        splits (pandas.Series): data from GPSEvaluator.split_histogram_data
+        min_kept: minimum amount of readings kept
+
+        RETURNS
+	    pandas.Series: cleaned data
+        """
         clusters=[] # lower & upper values of clusters
         cluster_mass={} # count what % of data cluster holds
         total_mass=splits.sum()
@@ -163,8 +273,23 @@ class GPSEvaluator:
 
         return new_splits
 
-    # generate histogram data for each km and returns df with kms as columns and splits as rows
     def split_histogram_data_per_km(df:pd.DataFrame,bin_width=10,sampling_dist=100,clean=False) -> pd.DataFrame:
+        """
+        SUMMARY
+        Generate histogram data for each km
+        Data used in SVGMaker.generate_animated_histogram()
+
+        PARAMETERS
+	    df (pandas.DataFrame): dataframe of data produced by GPSReader.read().
+                               requires "cumm_distance" ("distance" OR ("position_lat" AND "position_lon") are sufficient)
+                               AND "seconds" ("time" is sufficient)
+        bin_width (int): width of bin in seconds for seconds per km split
+        sampling_dist (int): how often in metres to sample from the data set (default=100)
+        clean (bool): remove extreme data
+
+        RETURNS
+	    pandas.DataFrame: column for each km, row for each split.
+        """
         if (1000%sampling_dist!=0): return None # non-equal samples per km
 
         split_data=GPSEvaluator.splits(df,split_dist=sampling_dist)["time"] # generalise data
@@ -186,8 +311,17 @@ class GPSEvaluator:
         if clean: return GPSEvaluator.__clean_def_histogram_data_per_km(split_df)
         return split_df
 
-    # keeps densiest cluster whichc contains min_kept% of all values
-    def __clean_def_histogram_data_per_km(df:pd.DataFrame,min_kept=.9) -> pd.Series:
+    def __clean_def_histogram_data_per_km(df:pd.DataFrame,min_kept=.9) -> pd.DataFrame:
+        """
+        SUMMARY
+        keeps densiest cluster which contains min_kept% of all values
+
+        PARAMETERS
+    	df (pandas.DataFrame): data from GPSEvaluator.split_histogram_data_per_km
+
+        RETURNS
+    	pandas.DataFrame: cleaned data frame
+        """
         clusters=[]; cluster_mass={}
         total_mass=df.values.sum()
 

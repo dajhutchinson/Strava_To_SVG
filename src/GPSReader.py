@@ -13,18 +13,38 @@ The difference between gpx & tcx data is that tcx includes calculation of distan
 class GPSReader:
 
     # read datafiles to dictionaries
-    def read(self,path):
+    def read(self,path:str) -> (list(dict),dict):
+        """
+        SUMMARY
+        Parse data from gps files.
+        Supports .tcx and .gpx files
+
+        PARAMETERS
+	    path (str): path to file to read
+
+        RETURNS
+	    list(dict): dictionary of data extracted from each reading
+        dict: metadata
+        """
         extension=path[-4:]
         if (extension==".gpx"): return self.read_gpx(path)
         if (extension==".tcx"): return self.read_tcx(path)
         return -1, -1 # unrecognised file type
 
-    """
-    reads tcx data into two dictionaries
-        data     = [{time:datetime.datetime,position_lat:float,position_lon:float,altitude:float,heart_rate:int}]
-        metadata = [{sport:str/int,date:datetime.datetime}]
-    """
-    def read_gpx(self,path):
+    def read_gpx(self,path:str) -> (list(dict),dict):
+        """
+        SUMMARY
+        Parse data from .gpx files.
+
+        PARAMETERS
+	    path (str): path to file to read
+
+        RETURNS
+	    list(dict): dictionary of data extracted from each reading
+                    fields include ["position_lat":float,"position_lon":float,"altitude":float,"time":datetime.datetime,"hr":int]
+        dict: metadata
+              fields include ["sport":str,"date":datetime.datetime]
+        """
         f=open(path,"r")
         it=iter(f) # iterate line by line
         data=[]; metadata={}
@@ -62,13 +82,20 @@ class GPSReader:
 
         return data,metadata
 
-    """
-    reads tcx data into two dictionaries
-    NOTE - ignores laps and just amalgements all into one
-        data     = [{time:datetime.datetime,position_lat:float,position_lon:float,altitude:float,distance_to_point:float,heart_rate:int}]
-        metadata = [{sport:str,date:datetime.datetime}]
-    """
-    def read_tcx(self, path):
+    def read_tcx(self, path) -> (list(dict),dict):
+        """
+        SUMMARY
+        Parse data from .tcx files.
+
+        PARAMETERS
+	    path (str): path to file to read
+
+        RETURNS
+	    list(dict): dictionary of data extracted from each reading
+                    fields include ["position_lat":float,"position_lon":float,"altitude":float,"time":datetime.datetime,"distance_to_point":float,"hr":int]
+        dict: metadata
+              fields include ["sport":str,"date":datetime.datetime]
+        """
         f=open(path,"r")
         it=iter(f)
 
@@ -116,8 +143,17 @@ class GPSReader:
 
         return data,metadata
 
-    # convert data from read func to pd.DataFrame
     def data_to_dataframe(self,data):
+        """
+        SUMMARY
+        Convert data from GPSReader.read, GPSReader.read_gpx or GPSReader.read_tcx to pandas.DataFrame
+
+        PARAMETERS
+	    parameter (list(dict)): data from GPSReader.read, GPSReader.read_gpx or GPSReader.read_tcx
+
+        RETURNS
+	    pandas.DataFrame: dataframe for passed data
+        """
         return pd.DataFrame(data)
 
 if __name__=="__main__":
