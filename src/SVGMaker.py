@@ -81,7 +81,7 @@ class HistogramStyler:
         self.text=text
         self.text_gap=stroke_width+1 if (text_gap is None) else text_gap
         self.font_size=font_size
-        self.font_colour=HistogramStyler.__ensure_hex(font_colout)
+        self.font_colour=HistogramStyler.__ensure_hex(font_colour)
         self.font_family=font_family
         self.font_anchor=font_anchor
 
@@ -371,7 +371,7 @@ class SVGMaker:
         scaling["lat_scale"]=lat_diff/max_diff; scaling["lon_scale"]=lon_diff/max_diff # ensure scaling is good
 
         # path string
-        point_str=SVGMaker.__route_svg_path_string(lat_lon_data,route_styler,scaling,flip_y)
+        point_str=SVGMaker.__route_svg_path_string(lat_lon_data,route_styler,scaling)
 
         # write svg file
         svg_file=open(output_name+".svg","w+")
@@ -385,11 +385,11 @@ class SVGMaker:
         else: css_file_name=None; js_file_name =None
 
         # add split markers
-        if (route_styler.split_dist is not None): SVGMaker.__add_route_svg_split_markers(svg_file,df,route_styler,scaling,flip_y)
+        if (route_styler.split_dist is not None): SVGMaker.__add_route_svg_split_markers(svg_file,df,route_styler,scaling)
 
         # add special markers
-        if (route_styler.finish_marker): SVGMaker.__add_route_svg_special_markers("finish",route_styler.finish_marker_width,route_styler.finish_marker_colour,route_styler.border_width,svg_file,df,scaling,flip_y)
-        if (route_styler.start_marker): SVGMaker.__add_route_svg_special_markers("start",route_styler.start_marker_width,route_styler.start_marker_colour,route_styler.border_width,svg_file,df,scaling,flip_y)
+        if (route_styler.finish_marker): SVGMaker.__add_route_svg_special_markers("finish",route_styler.finish_marker_width,route_styler.finish_marker_colour,route_styler.border_width,svg_file,df,scaling,route_styler)
+        if (route_styler.start_marker): SVGMaker.__add_route_svg_special_markers("start",route_styler.start_marker_width,route_styler.start_marker_colour,route_styler.border_width,svg_file,df,scaling,route_styler)
 
         # end file
         svg_file.write("</svg>")
@@ -417,6 +417,9 @@ class SVGMaker:
         RETURNS
 	    str: string of points
         """
+        lon_diff=scaling["max_lon"]-scaling["min_lon"]
+        lat_diff=scaling["max_lat"]-scaling["min_lat"]
+        max_diff=max(lon_diff,lat_diff)
         flip_y=lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x # function to flip y since it increases as it goes down the image
 
         # scale gps coords to [0-1000] leaving a border
@@ -430,7 +433,7 @@ class SVGMaker:
 
         return point_str
 
-    def __add_route_svg_animation(svg_file:file,class_name:str,route_styler:RouteStyler,point_str:str,output_name:str) -> (str,str):
+    def __add_route_svg_animation(svg_file,class_name:str,route_styler:RouteStyler,point_str:str,output_name:str) -> (str,str):
         """
         SUMMARY
         add animation to a route svg.
@@ -452,7 +455,7 @@ class SVGMaker:
         js_file_name=SVGMaker.__generate_js_for_animated_route(class_name,route_styler=route_styler,output_name=output_name)   # ensures animation is seamless
         return css_file_name,js_file_name
 
-    def __add_route_svg_split_markers(svg_file:file,df:pd.DataFrame,route_styler:RouteStyler,scaling:dict) -> file:
+    def __add_route_svg_split_markers(svg_file,df:pd.DataFrame,route_styler:RouteStyler,scaling:dict) -> str:
         """
         SUMMARY
         add split markers to a route svg.
@@ -468,6 +471,9 @@ class SVGMaker:
         RETURNS
 	    file: svg file (same as parameter `svg_file`)
         """
+        lon_diff=scaling["max_lon"]-scaling["min_lon"]
+        lat_diff=scaling["max_lat"]-scaling["min_lat"]
+        max_diff=max(lon_diff,lat_diff)
         flip_y=lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x # function to flip y since it increases as it goes down the image
         split_coords=GPSEvaluator.split_markers(df,route_styler.split_dist) # get marker lat,lon positions
 
@@ -481,7 +487,7 @@ class SVGMaker:
 
         return svg_file
 
-    def __add_route_svg_special_markers(marker_type:str,marker_width:int,marker_colour:str,image_border:int,svg_file:file,df:pd.DataFrame,scaling:dict) -> file:
+    def __add_route_svg_special_markers(marker_type:str,marker_width:int,marker_colour:str,image_border:int,svg_file,df:pd.DataFrame,scaling:dict,route_styler:RouteStyler) -> str:
         """
         SUMMARY
         add markers for special locations on a route svg.
@@ -501,6 +507,9 @@ class SVGMaker:
         RETURNS
 	    file: svg file (same as parameter `svg_file`)
         """
+        lon_diff=scaling["max_lon"]-scaling["min_lon"]
+        lat_diff=scaling["max_lat"]-scaling["min_lat"]
+        max_diff=max(lon_diff,lat_diff)
         flip_y=lambda x: route_styler.border_width+ceil(1000*(lat_diff/max_diff))-x # function to flip y since it increases as it goes down the image
         lat,lon=GPSEvaluator.important_points(df,name=marker_type)
 
@@ -665,7 +674,7 @@ class SVGMaker:
 
         return files
 
-    def __add_histogram_bars(svg_file:file,widths:pd.Series,hist_styler:HistogramStyler) -> list(int):
+    def __add_histogram_bars(svg_file,widths:pd.Series,hist_styler:HistogramStyler) -> [int]:
         """
         SUMMARY
         add histogram bars to svg file.
@@ -690,7 +699,7 @@ class SVGMaker:
             count+=1
         return x_poss
 
-    def __add_histogram_text(svg_file:file,x_poss:[int],labels:[str],hist_styler:HistogramStyler) -> file:
+    def __add_histogram_text(svg_file,x_poss:[int],labels:[str],hist_styler:HistogramStyler) -> str:
         """
         SUMMARY
         add labels to end of bars in svg_file.
@@ -715,7 +724,7 @@ class SVGMaker:
 
         return svg_file
 
-    def __add_histogram_axis(svg_file:file,hist_styler:HistogramStyler,y_max:int) -> file:
+    def __add_histogram_axis(svg_file,hist_styler:HistogramStyler,y_max:int) -> str:
         """
         SUMMARY
         add vertical axis to histogram.
@@ -793,7 +802,7 @@ class SVGMaker:
 
         return files
 
-    def __add_animation_histogram_bars(svg_file:file,widths_df:pd.DataFrame,hist_styler:HistogramStyler) -> file:
+    def __add_animation_histogram_bars(svg_file,widths_df:pd.DataFrame,hist_styler:HistogramStyler) -> str:
         """
         SUMMARY
         add bars to histogram svg file, such that animation is possible.
@@ -826,7 +835,7 @@ class SVGMaker:
     """
     ANIMATION
     """
-    def histogram_animation_freeze(col_labels:list(str),hist_styler:HistogramStyler,output_name="test/animated_hist") -> str:
+    def histogram_animation_freeze(col_labels:[str],hist_styler:HistogramStyler,output_name="test/animated_hist") -> str:
         """
         SUMMARY
         creates css file which defines the *freeze* animation for a histogram.
@@ -856,7 +865,7 @@ class SVGMaker:
         css_file.close()
         return output_name+".css"
 
-    def histogram_animation_bounce(col_labels:list(str),hist_styler:HistogramStyler,output_name="test/animated_hist") -> str:
+    def histogram_animation_bounce(col_labels:[str],hist_styler:HistogramStyler,output_name="test/animated_hist") -> str:
         """
         SUMMARY
         creates css file which defines the *bounce* animation for a histogram.

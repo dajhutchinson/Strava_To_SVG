@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 
-def get_full_activity_list(access_token:str,per_page=50,before=None,after=None) -> list(dict):
+def get_full_activity_list(access_token:str,per_page=50,before=None,after=None) -> [dict]:
     """
     SUMMARY
     fetch data from strava API for all activities completed by user.

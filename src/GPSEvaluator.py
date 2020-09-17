@@ -172,7 +172,7 @@ class GPSEvaluator:
         return pd.DataFrame(split_coords)
 
     # identify coords of important locations (start or end)
-    def important_points(df:pd.DataFrame,name:str) -> df.Series:
+    def important_points(df:pd.DataFrame,name:str) -> pd.Series:
         """
         SUMMARY
         Identifies the lat-lon position of special points.

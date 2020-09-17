@@ -13,7 +13,7 @@ The difference between gpx & tcx data is that tcx includes calculation of distan
 class GPSReader:
 
     # read datafiles to dictionaries
-    def read(self,path:str) -> (list(dict),dict):
+    def read(self,path:str) -> ([dict],dict):
         """
         SUMMARY
         Parse data from gps files.
@@ -31,7 +31,7 @@ class GPSReader:
         if (extension==".tcx"): return self.read_tcx(path)
         return -1, -1 # unrecognised file type
 
-    def read_gpx(self,path:str) -> (list(dict),dict):
+    def read_gpx(self,path:str) -> ([dict],dict):
         """
         SUMMARY
         Parse data from .gpx files.
@@ -82,7 +82,7 @@ class GPSReader:
 
         return data,metadata
 
-    def read_tcx(self, path) -> (list(dict),dict):
+    def read_tcx(self, path) -> ([dict],dict):
         """
         SUMMARY
         Parse data from .tcx files.
