@@ -14,3 +14,7 @@ Plot of the route using GPS data.
 ## Elevation
 Plot of the elevation along the route using GPS data.
 ![Elevation](elevation.gif)
+
+## Installation
+Install requirements using
+`pip install -r requirements.txt`
