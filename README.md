@@ -6,13 +6,14 @@ RapidTables have a useful tool for visualising svg plots [Link](https://www.rapi
 # Contents
  * [Results](#Results)
   * [Route Plot](#Route)
-  * [Elevation Profile Plot](#Elevation Profile)
+  * [Elevation Profile Plot](#"Elevation Profile")
   * [Animated Histogram](#Animated Histogram)
  * [Usage Guide](#Usage Guide)
   * [Installation](#Installation)
   * [Getting Data](#Getting Data)
     * [GPS Data to DataFrame](#GPS Data to DataFrame)
     * [GPSEvaluator](#GPSEvaluator)
+    * [StravaScraper](#StravaScraper)
   * [Making Plots](#Making Plots)
     * [Route Plot](# Route SVG)
     * [Elevation Profile Plot](# Elevation Profile SVG)
@@ -64,6 +65,8 @@ Install requirements using
 | `important_points` | Returns the gps co-ordinates for specified notable positions on route | `name (str)` taking `"start"` or `"finish"` |
 | `split_histogram_data` | Counts the number of readings in given split speed intervals | `bin_width (int)` (default=`10`); `sampling_dist (int)` (default=`100`); `clean (bool)` (default=`False`) |
 | `split_histogram_data_per_km` | Counts the number of readings, per km, in given split speed intervals | `bin_width (int)` (default=`10`); `sampling_dist (int)` (default=`100`); `clean (bool)` (default=`False`) |
+
+### StravaScraper
 
 ## Making Plots
 
