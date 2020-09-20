@@ -14,6 +14,7 @@ RapidTables have a useful tool for visualising svg plots [Link](https://www.rapi
     * [GPS Data to DataFrame](#GPS-Data-to-DataFrame)
     * [Downloading Files from Strava]([https://github.com/dajhutchinson/Strava_To_SVG/blob/master/STRAVA.md])
     * [GPSEvaluator](#GPSEvaluator)
+  * [Styling Plots](STYLING.md)
   * [Making Plots](#Making-Plots)
     * [Route Plot](#Route-SVG)
     * [Elevation Profile Plot](#Elevation-Profile-SVG)
@@ -28,15 +29,15 @@ RapidTables have a useful tool for visualising svg plots [Link](https://www.rapi
 
 ## Route
 Plot of the route using GPS data.
-![Route](route.gif)
+![Route](gifs/route.gif)
 
 ## Elevation Profile
 Plot of the elevation along the route using GPS data.
-![Elevation](elevation.gif)
+![Elevation](gifs/elevation.gif)
 
 ## Animated Histogram
 Animated histogram of split times. In this example splits are added 1km at a time.
-![Animated Hist](animated_hist.gif)
+![Animated Hist](gifs/animated_hist.gif)
 
 # Usage Guide
 
@@ -68,6 +69,9 @@ See (`STRAVA.md`)[https://github.com/dajhutchinson/Strava_To_SVG/blob/master/STR
 | `important_points` | Returns the gps co-ordinates for specified notable positions on route | `name (str)` taking `"start"` or `"finish"` |
 | `split_histogram_data` | Counts the number of readings in given split speed intervals | `bin_width (int)` (default=`10`); `sampling_dist (int)` (default=`100`); `clean (bool)` (default=`False`) |
 | `split_histogram_data_per_km` | Counts the number of readings, per km, in given split speed intervals | `bin_width (int)` (default=`10`); `sampling_dist (int)` (default=`100`); `clean (bool)` (default=`False`) |
+
+## Styling Plots
+See (`STYLING.md`)[https://github.com/dajhutchinson/Strava_To_SVG/blob/master/STYLING.md]
 
 ## Making Plots
 
