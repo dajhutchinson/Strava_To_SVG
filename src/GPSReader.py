@@ -143,7 +143,7 @@ class GPSReader:
 
         return data,metadata
 
-    def data_to_dataframe(self,data):
+    def data_to_dataframe(self,data) -> pd.DataFrame:
         """
         SUMMARY
         Convert data from GPSReader.read, GPSReader.read_gpx or GPSReader.read_tcx to pandas.DataFrame
