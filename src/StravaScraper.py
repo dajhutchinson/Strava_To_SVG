@@ -48,7 +48,6 @@ def generate_login_data(session:requests.Session,email:str,password:str,utf8=Non
     login_data={'utf8':utf8,'authenticity_token':token,'plan':"",'email':email,'password':password}
     return login_data
 
-# log session into strava
 def login(session:requests.Session,login_data:dict) -> bool:
     """
     SUMMARY

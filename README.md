@@ -12,8 +12,8 @@ RapidTables have a useful tool for visualising svg plots [Link](https://www.rapi
   * [Installation](#Installation)
   * [Getting Data](#Getting-Data)
     * [GPS Data to DataFrame](#GPS-Data-to-DataFrame)
+    * [Downloading Files from Strava]([https://github.com/dajhutchinson/Strava_To_SVG/blob/master/STRAVA.md])
     * [GPSEvaluator](#GPSEvaluator)
-    * [StravaScraper](#StravaScraper)
   * [Making Plots](#Making-Plots)
     * [Route Plot](#Route-SVG)
     * [Elevation Profile Plot](#Elevation-Profile-SVG)
@@ -53,6 +53,9 @@ Install requirements using
   - `dict`, the parsed metadata.
 3. Pass the `list(dict)` to `GPSReader.data_to_dataframe()` to convert it to a `pd.DataFrame`.
 
+### Downloading Files from Strava
+See (`STRAVA.md`)[https://github.com/dajhutchinson/Strava_To_SVG/blob/master/STRAVA.md]
+
 ### GPSEvaluator
 `GPSEvaluator` offers several methods for elevating the data parsed by `GPSReader`. Each method takes the dataframe generated [above](#GPS Data to DataFrame) as a parameter, along with certain specifiers.
 | Method Name | Description | Other Parameters |
@@ -65,8 +68,6 @@ Install requirements using
 | `important_points` | Returns the gps co-ordinates for specified notable positions on route | `name (str)` taking `"start"` or `"finish"` |
 | `split_histogram_data` | Counts the number of readings in given split speed intervals | `bin_width (int)` (default=`10`); `sampling_dist (int)` (default=`100`); `clean (bool)` (default=`False`) |
 | `split_histogram_data_per_km` | Counts the number of readings, per km, in given split speed intervals | `bin_width (int)` (default=`10`); `sampling_dist (int)` (default=`100`); `clean (bool)` (default=`False`) |
-
-### StravaScraper
 
 ## Making Plots
 
