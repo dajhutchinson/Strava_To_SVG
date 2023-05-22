@@ -1,4 +1,4 @@
 pandas==0.25.0
 geopy==1.20.0
-requests==2.22.0
+requests==2.31.0
 requests-html==0.10.0
