@@ -65,7 +65,10 @@ class GPSReader:
                 elevation=line.replace("<ele>",'').replace("</ele>",'')
                 datum["altitude"]=float(elevation)
             elif "<time>" in line:
-                time=datetime.strptime(line.replace("<time>","").replace("</time>",""),"%Y-%m-%dT%H:%M:%SZ")
+		try:
+                    time=datetime.strptime(line.replace("<time>","").replace("</time>",""),"%Y-%m-%dT%H:%M:%SZ")
+		except ValueError:
+		    time=datetime.strptime(line.replace("<time>","").replace("</time>",""),"%Y-%m-%dT%H:%M:%S.%fZ")
                 if in_metadata: metadata["date"]=time
                 else: datum["time"]=time
             elif "<gpxtpx:hr>" in line:
